@@ -10,3 +10,8 @@ data/processed/*
 !data/processed/.gitkeep
 data/staging/*
 !data/staging/.gitkeep
+
+# Local secrets: database credentials live only in .env (template: .env.example)
+.env
+.env.*
+!.env.example

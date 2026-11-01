@@ -11,3 +11,4 @@ ipykernel
 pyarrow
 openpyxl
 sqlalchemy
+psycopg[binary]
