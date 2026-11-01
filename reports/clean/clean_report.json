@@ -1,0 +1,2371 @@
+{
+  "run_id": "cdc88ffb32ce",
+  "layer": "clean",
+  "executed_at_utc": "2026-11-01T20:22:23+00:00",
+  "finished_at_utc": "2026-11-01T20:22:32+00:00",
+  "git": {
+    "commit": "fd7b7559eda66e50524f4f561e27aab8f69b60d3",
+    "dirty": false
+  },
+  "code_sha256": "4b04ef08832ee5cb2594c41a8e57d8d3a0f52bcfa8d68092c1b0f3c9810bf75b",
+  "environment": {
+    "python": "3.12.10",
+    "pandas": "3.1.0",
+    "numpy": "2.5.4",
+    "pyarrow": "26.0.0"
+  },
+  "raw_dir": "data/raw",
+  "staging_dir": "data/staging",
+  "staging_run_id": "b387742326b9",
+  "output_dir": "data/processed/clean",
+  "manifest": "data/processed/_manifest/cdc88ffb32ce.json",
+  "baseline_verified": true,
+  "outputs_written": true,
+  "success": true,
+  "parameters": {
+    "density_threshold_g_per_cm3": 2.0,
+    "suspicious_dims_cm": [
+      16,
+      2,
+      11
+    ],
+    "shipping_limit_max_offset_years": 1,
+    "url_encoded_apostrophe": "%26apos%3b",
+    "malformed_city_pattern": "[\\d/\\\\@,]|\\s-\\s",
+    "city_key_rule": "NFKD, drop non-ASCII, lower case, strip",
+    "brazil_bbox": {
+      "lat": [
+        -33.75,
+        5.27
+      ],
+      "lng": [
+        -73.99,
+        -34.79
+      ]
+    },
+    "zip_centroid": "unweighted component-wise median over distinct in-Brazil (zip, lat, lng) points",
+    "date_only_comparisons": "review_creation_date compared at day level"
+  },
+  "check_summary": {
+    "blocking": {
+      "total": 104,
+      "passed": 104,
+      "failed": 0
+    },
+    "regression": {
+      "total": 76,
+      "passed": 76,
+      "failed": 0
+    },
+    "warning": {
+      "total": 4,
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "outputs": [
+    {
+      "output_dataset": "customers",
+      "kind": "source",
+      "grain": "one customer record per order (customer_id)",
+      "path": "data/processed/clean/customers.parquet",
+      "source_datasets": [
+        "customers",
+        "geolocation_points",
+        "geolocation_rows"
+      ],
+      "rows_in": 99441,
+      "rows_out": 99441,
+      "columns": 10,
+      "sha256": "e54a5025822bb93f5b1d914fba0e8483b691cf85467a7b516de5d0c4690c9e60",
+      "content_sha256": "53a12ff91bed6413ab7d64ac3b1610e12c484202a9785629f45d023a64a15e4a",
+      "added_columns": [
+        "city_key",
+        "customer_state_std",
+        "lat_centroid",
+        "lng_centroid",
+        "dq_no_geolocation"
+      ],
+      "flag_counts": {
+        "dq_no_geolocation": 279
+      },
+      "schema": {
+        "customer_id": "string",
+        "customer_unique_id": "string",
+        "customer_zip_code_prefix": "string",
+        "customer_city": "string",
+        "customer_state": "category",
+        "city_key": "string",
+        "customer_state_std": "category",
+        "lat_centroid": "float64",
+        "lng_centroid": "float64",
+        "dq_no_geolocation": "bool"
+      },
+      "missing_values": {
+        "customer_id": 0,
+        "customer_unique_id": 0,
+        "customer_zip_code_prefix": 0,
+        "customer_city": 0,
+        "customer_state": 0,
+        "city_key": 0,
+        "customer_state_std": 0,
+        "lat_centroid": 279,
+        "lng_centroid": 279,
+        "dq_no_geolocation": 0
+      },
+      "transformations": [
+        "+ city_key [string] <- customer_city: accent-free, lower case, trimmed (D-11)",
+        "+ customer_state_std [category] <- customer_state: upper case, trimmed; validated against the 27 UFs (8.1)",
+        "+ lat_centroid [float64] <- zip_lookup.lat_centroid: zip_lookup centroid via many_to_one join on zip prefix (D-10.4)",
+        "+ lng_centroid [float64] <- zip_lookup.lng_centroid: zip_lookup centroid via many_to_one join on zip prefix (D-10.4)",
+        "+ dq_no_geolocation [bool] <- zip_lookup: zip absent from zip_lookup, or zip has no valid point (centroid missing) (D-10.4)"
+      ]
+    },
+    {
+      "output_dataset": "geolocation",
+      "kind": "source",
+      "grain": "one raw coordinate row (no key; 1:1 with staging rows)",
+      "path": "data/processed/clean/geolocation.parquet",
+      "source_datasets": [
+        "geolocation"
+      ],
+      "rows_in": 1000163,
+      "rows_out": 1000163,
+      "columns": 8,
+      "sha256": "b45701514f0b45ceeeb2daa263456406e90cd3e9e0b3cd15d58981718e2bb909",
+      "content_sha256": "7514e9a7485da60a2ca9fa9726f5f8e5e4ba32407a9fd90a1425b019ca7d8e40",
+      "added_columns": [
+        "geolocation_city_std",
+        "city_key",
+        "geolocation_state_std"
+      ],
+      "flag_counts": {},
+      "schema": {
+        "geolocation_zip_code_prefix": "string",
+        "geolocation_lat": "float64",
+        "geolocation_lng": "float64",
+        "geolocation_city": "string",
+        "geolocation_state": "category",
+        "geolocation_city_std": "string",
+        "city_key": "string",
+        "geolocation_state_std": "category"
+      },
+      "missing_values": {
+        "geolocation_zip_code_prefix": 0,
+        "geolocation_lat": 0,
+        "geolocation_lng": 0,
+        "geolocation_city": 0,
+        "geolocation_state": 0,
+        "geolocation_city_std": 0,
+        "city_key": 0,
+        "geolocation_state_std": 0
+      },
+      "transformations": [
+        "+ geolocation_city_std [string] <- geolocation_city: '%26apos%3b' decoded to an apostrophe; otherwise unchanged (8.1)",
+        "+ city_key [string] <- geolocation_city: accent-free, lower case, trimmed (raw text, no decoding) (D-11)",
+        "+ geolocation_state_std [category] <- geolocation_state: upper case, trimmed; validated against the 27 UFs (8.1)"
+      ]
+    },
+    {
+      "output_dataset": "orders",
+      "kind": "source",
+      "grain": "one order (order_id)",
+      "path": "data/processed/clean/orders.parquet",
+      "source_datasets": [
+        "orders",
+        "customers"
+      ],
+      "rows_in": 99441,
+      "rows_out": 99441,
+      "columns": 17,
+      "sha256": "f9525f31a4d2ec6cd1f384116a15907020fdee23b339d3aa53f08873fcf73291",
+      "content_sha256": "129738f21d21a6623882205d616e689ccc55d725100e2930c38bc6b4f4b8c34f",
+      "added_columns": [
+        "dq_delivered_missing_approval",
+        "dq_delivered_missing_carrier_date",
+        "dq_delivered_missing_delivery_date",
+        "dq_carrier_before_purchase",
+        "dq_delivered_before_carrier",
+        "dq_carrier_before_approval",
+        "dq_delivered_before_approval",
+        "dq_status_canceled_with_date",
+        "dq_same_person_same_second"
+      ],
+      "flag_counts": {
+        "dq_delivered_missing_approval": 14,
+        "dq_delivered_missing_carrier_date": 2,
+        "dq_delivered_missing_delivery_date": 8,
+        "dq_carrier_before_purchase": 166,
+        "dq_delivered_before_carrier": 23,
+        "dq_carrier_before_approval": 1359,
+        "dq_delivered_before_approval": 61,
+        "dq_status_canceled_with_date": 6,
+        "dq_same_person_same_second": 582
+      },
+      "schema": {
+        "order_id": "string",
+        "customer_id": "string",
+        "order_status": "category",
+        "order_purchase_timestamp": "datetime64[us]",
+        "order_approved_at": "datetime64[us]",
+        "order_delivered_carrier_date": "datetime64[us]",
+        "order_delivered_customer_date": "datetime64[us]",
+        "order_estimated_delivery_date": "datetime64[us]",
+        "dq_delivered_missing_approval": "bool",
+        "dq_delivered_missing_carrier_date": "bool",
+        "dq_delivered_missing_delivery_date": "bool",
+        "dq_carrier_before_purchase": "bool",
+        "dq_delivered_before_carrier": "bool",
+        "dq_carrier_before_approval": "bool",
+        "dq_delivered_before_approval": "bool",
+        "dq_status_canceled_with_date": "bool",
+        "dq_same_person_same_second": "bool"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "customer_id": 0,
+        "order_status": 0,
+        "order_purchase_timestamp": 0,
+        "order_approved_at": 160,
+        "order_delivered_carrier_date": 1783,
+        "order_delivered_customer_date": 2965,
+        "order_estimated_delivery_date": 0,
+        "dq_delivered_missing_approval": 0,
+        "dq_delivered_missing_carrier_date": 0,
+        "dq_delivered_missing_delivery_date": 0,
+        "dq_carrier_before_purchase": 0,
+        "dq_delivered_before_carrier": 0,
+        "dq_carrier_before_approval": 0,
+        "dq_delivered_before_approval": 0,
+        "dq_status_canceled_with_date": 0,
+        "dq_same_person_same_second": 0
+      },
+      "transformations": [
+        "+ dq_delivered_missing_approval [bool] <- order_status, order_approved_at: status = delivered and approval missing (D-06)",
+        "+ dq_delivered_missing_carrier_date [bool] <- order_status, order_delivered_carrier_date: status = delivered and carrier date missing (D-06)",
+        "+ dq_delivered_missing_delivery_date [bool] <- order_status, order_delivered_customer_date: status = delivered and delivery date missing (D-06)",
+        "+ dq_carrier_before_purchase [bool] <- order_delivered_carrier_date, order_purchase_timestamp: carrier date < purchase (both present) (D-08)",
+        "+ dq_delivered_before_carrier [bool] <- order_delivered_customer_date, order_delivered_carrier_date: delivery date < carrier date (both present) (D-08)",
+        "+ dq_carrier_before_approval [bool] <- order_delivered_carrier_date, order_approved_at: carrier date < approval (both present) (D-08)",
+        "+ dq_delivered_before_approval [bool] <- order_delivered_customer_date, order_approved_at: delivery date < approval (both present) (D-08)",
+        "+ dq_status_canceled_with_date [bool] <- order_status, order_delivered_customer_date: status = canceled and delivery date present (D-08 / Q-01)",
+        "+ dq_same_person_same_second [bool] <- customers.customer_unique_id, order_purchase_timestamp: another order by the same customer_unique_id has the same purchase timestamp (all rows of the group) (D-07 / Q-09)"
+      ]
+    },
+    {
+      "output_dataset": "order_items",
+      "kind": "source",
+      "grain": "one unit line within an order (order_id, order_item_id)",
+      "path": "data/processed/clean/order_items.parquet",
+      "source_datasets": [
+        "order_items",
+        "orders"
+      ],
+      "rows_in": 112650,
+      "rows_out": 112650,
+      "columns": 8,
+      "sha256": "5e8eb29121eed4c66b24a31f583a5bab7c2fee6e90faaab977dda604e060989d",
+      "content_sha256": "2258f97453fbdeaf95ec91a9d17960a930595cffb8a486d69a2e12ecccb97a03",
+      "added_columns": [
+        "dq_shipping_limit_out_of_range"
+      ],
+      "flag_counts": {
+        "dq_shipping_limit_out_of_range": 4
+      },
+      "schema": {
+        "order_id": "string",
+        "order_item_id": "Int64",
+        "product_id": "string",
+        "seller_id": "string",
+        "shipping_limit_date": "datetime64[us]",
+        "price": "float64",
+        "freight_value": "float64",
+        "dq_shipping_limit_out_of_range": "bool"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "order_item_id": 0,
+        "product_id": 0,
+        "seller_id": 0,
+        "shipping_limit_date": 0,
+        "price": 0,
+        "freight_value": 0,
+        "dq_shipping_limit_out_of_range": 0
+      },
+      "transformations": [
+        "+ dq_shipping_limit_out_of_range [bool] <- shipping_limit_date, orders.order_purchase_timestamp: shipping_limit_date > max(purchase) + 1 year (D-08 / Q-15)"
+      ]
+    },
+    {
+      "output_dataset": "payments",
+      "kind": "source",
+      "grain": "one payment transaction (order_id, payment_sequential)",
+      "path": "data/processed/clean/payments.parquet",
+      "source_datasets": [
+        "payments"
+      ],
+      "rows_in": 103886,
+      "rows_out": 103886,
+      "columns": 7,
+      "sha256": "08249e1eed49be66a7140878f3b88c8394fb8fb70d3e19f021d9465c4eb22880",
+      "content_sha256": "0eb53a79562b072db51c8384dcce6783fb5064a7ec4455974f359a03fc6fe1c0",
+      "added_columns": [
+        "dq_payment_zero",
+        "dq_installments_zero"
+      ],
+      "flag_counts": {
+        "dq_payment_zero": 9,
+        "dq_installments_zero": 2
+      },
+      "schema": {
+        "order_id": "string",
+        "payment_sequential": "Int64",
+        "payment_type": "category",
+        "payment_installments": "Int64",
+        "payment_value": "float64",
+        "dq_payment_zero": "bool",
+        "dq_installments_zero": "bool"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "payment_sequential": 0,
+        "payment_type": 0,
+        "payment_installments": 0,
+        "payment_value": 0,
+        "dq_payment_zero": 0,
+        "dq_installments_zero": 0
+      },
+      "transformations": [
+        "+ dq_payment_zero [bool] <- payment_value: payment_value = 0 (D-09)",
+        "+ dq_installments_zero [bool] <- payment_installments: payment_installments = 0 (value kept) (D-16 / Q-07)"
+      ]
+    },
+    {
+      "output_dataset": "reviews",
+      "kind": "source",
+      "grain": "one review-order link (review_id, order_id)",
+      "path": "data/processed/clean/reviews.parquet",
+      "source_datasets": [
+        "reviews",
+        "orders"
+      ],
+      "rows_in": 99224,
+      "rows_out": 99224,
+      "columns": 13,
+      "sha256": "a4e3adf351346168145c6c9ccd556e9334b6ea758b6cae27fb5f0ff6f04cdb37",
+      "content_sha256": "6eac57a8165b952a50fe1ec755e80ff04502b0eec0f07697399ef8d2201c1d17",
+      "added_columns": [
+        "has_comment_title",
+        "has_comment_message",
+        "dq_review_id_shared",
+        "dq_review_content_duplicate",
+        "dq_review_before_purchase",
+        "dq_review_before_delivery"
+      ],
+      "flag_counts": {
+        "has_comment_title": 11568,
+        "has_comment_message": 40977,
+        "dq_review_id_shared": 1603,
+        "dq_review_content_duplicate": 86,
+        "dq_review_before_purchase": 64,
+        "dq_review_before_delivery": 5127
+      },
+      "schema": {
+        "review_id": "string",
+        "order_id": "string",
+        "review_score": "Int64",
+        "review_comment_title": "string",
+        "review_comment_message": "string",
+        "review_creation_date": "datetime64[us]",
+        "review_answer_timestamp": "datetime64[us]",
+        "has_comment_title": "bool",
+        "has_comment_message": "bool",
+        "dq_review_id_shared": "bool",
+        "dq_review_content_duplicate": "bool",
+        "dq_review_before_purchase": "bool",
+        "dq_review_before_delivery": "bool"
+      },
+      "missing_values": {
+        "review_id": 0,
+        "order_id": 0,
+        "review_score": 0,
+        "review_comment_title": 87656,
+        "review_comment_message": 58247,
+        "review_creation_date": 0,
+        "review_answer_timestamp": 0,
+        "has_comment_title": 0,
+        "has_comment_message": 0,
+        "dq_review_id_shared": 0,
+        "dq_review_content_duplicate": 0,
+        "dq_review_before_purchase": 0,
+        "dq_review_before_delivery": 0
+      },
+      "transformations": [
+        "+ has_comment_title [bool] <- review_comment_title: title present (4.2)",
+        "+ has_comment_message [bool] <- review_comment_message: message present (4.2)",
+        "+ dq_review_id_shared [bool] <- review_id: review_id appears on more than one row (all rows) (D-07 / Q-04)",
+        "+ dq_review_content_duplicate [bool] <- order_id, review_score, review_comment_title, review_comment_message, review_creation_date: repeats an earlier row's order, score, title, message and creation date (first occurrence not flagged) (D-07)",
+        "+ dq_review_before_purchase [bool] <- review_creation_date, orders.order_purchase_timestamp: creation date < purchase date (day level) (D-08 / Q-15)",
+        "+ dq_review_before_delivery [bool] <- review_creation_date, orders.order_delivered_customer_date: creation date < delivery date (day level); informational (D-08)"
+      ]
+    },
+    {
+      "output_dataset": "products",
+      "kind": "source",
+      "grain": "one product listing (product_id)",
+      "path": "data/processed/clean/products.parquet",
+      "source_datasets": [
+        "products",
+        "products_metadata_flags",
+        "translation"
+      ],
+      "rows_in": 32951,
+      "rows_out": 32951,
+      "columns": 26,
+      "sha256": "b13443862a4107d0f46231abee972f46d514cc27622cabd91966f96bad80490e",
+      "content_sha256": "3b2115b0b606ab807ac0a559d9e8a0c76ef2d84acf34272ee4862d9bf0457048",
+      "added_columns": [
+        "dq_missing_category",
+        "dq_missing_name_length",
+        "dq_missing_description_length",
+        "dq_missing_photos_qty",
+        "dq_missing_weight_g",
+        "dq_missing_length_cm",
+        "dq_missing_height_cm",
+        "dq_missing_width_cm",
+        "dq_listing_metadata_missing",
+        "dq_physical_attributes_missing",
+        "dq_all_attributes_missing",
+        "dq_weight_zero",
+        "weight_g_valid",
+        "dq_density_suspicious",
+        "dq_dims_16x2x11",
+        "category_en_clean",
+        "category_reporting"
+      ],
+      "flag_counts": {
+        "dq_missing_category": 610,
+        "dq_missing_name_length": 610,
+        "dq_missing_description_length": 610,
+        "dq_missing_photos_qty": 610,
+        "dq_missing_weight_g": 2,
+        "dq_missing_length_cm": 2,
+        "dq_missing_height_cm": 2,
+        "dq_missing_width_cm": 2,
+        "dq_listing_metadata_missing": 610,
+        "dq_physical_attributes_missing": 2,
+        "dq_all_attributes_missing": 1,
+        "dq_weight_zero": 4,
+        "dq_density_suspicious": 159,
+        "dq_dims_16x2x11": 588
+      },
+      "schema": {
+        "product_id": "string",
+        "product_category_name": "string",
+        "product_name_length": "Int64",
+        "product_description_length": "Int64",
+        "product_photos_qty": "Int64",
+        "product_weight_g": "Int64",
+        "product_length_cm": "Int64",
+        "product_height_cm": "Int64",
+        "product_width_cm": "Int64",
+        "dq_missing_category": "bool",
+        "dq_missing_name_length": "bool",
+        "dq_missing_description_length": "bool",
+        "dq_missing_photos_qty": "bool",
+        "dq_missing_weight_g": "bool",
+        "dq_missing_length_cm": "bool",
+        "dq_missing_height_cm": "bool",
+        "dq_missing_width_cm": "bool",
+        "dq_listing_metadata_missing": "bool",
+        "dq_physical_attributes_missing": "bool",
+        "dq_all_attributes_missing": "bool",
+        "dq_weight_zero": "bool",
+        "weight_g_valid": "Int64",
+        "dq_density_suspicious": "bool",
+        "dq_dims_16x2x11": "bool",
+        "category_en_clean": "string",
+        "category_reporting": "string"
+      },
+      "missing_values": {
+        "product_id": 0,
+        "product_category_name": 610,
+        "product_name_length": 610,
+        "product_description_length": 610,
+        "product_photos_qty": 610,
+        "product_weight_g": 2,
+        "product_length_cm": 2,
+        "product_height_cm": 2,
+        "product_width_cm": 2,
+        "dq_missing_category": 0,
+        "dq_missing_name_length": 0,
+        "dq_missing_description_length": 0,
+        "dq_missing_photos_qty": 0,
+        "dq_missing_weight_g": 0,
+        "dq_missing_length_cm": 0,
+        "dq_missing_height_cm": 0,
+        "dq_missing_width_cm": 0,
+        "dq_listing_metadata_missing": 0,
+        "dq_physical_attributes_missing": 0,
+        "dq_all_attributes_missing": 0,
+        "dq_weight_zero": 0,
+        "weight_g_valid": 6,
+        "dq_density_suspicious": 0,
+        "dq_dims_16x2x11": 0,
+        "category_en_clean": 610,
+        "category_reporting": 0
+      },
+      "transformations": [
+        "+ dq_missing_category [bool] <- products_metadata_flags.dq_missing_category: reused from staging products_metadata_flags (product_category_name missing) (4.3)",
+        "+ dq_missing_name_length [bool] <- products_metadata_flags.dq_missing_name_length: reused from staging products_metadata_flags (product_name_length missing) (4.3)",
+        "+ dq_missing_description_length [bool] <- products_metadata_flags.dq_missing_description_length: reused from staging products_metadata_flags (product_description_length missing) (4.3)",
+        "+ dq_missing_photos_qty [bool] <- products_metadata_flags.dq_missing_photos_qty: reused from staging products_metadata_flags (product_photos_qty missing) (4.3)",
+        "+ dq_missing_weight_g [bool] <- products_metadata_flags.dq_missing_weight_g: reused from staging products_metadata_flags (product_weight_g missing) (4.3)",
+        "+ dq_missing_length_cm [bool] <- products_metadata_flags.dq_missing_length_cm: reused from staging products_metadata_flags (product_length_cm missing) (4.3)",
+        "+ dq_missing_height_cm [bool] <- products_metadata_flags.dq_missing_height_cm: reused from staging products_metadata_flags (product_height_cm missing) (4.3)",
+        "+ dq_missing_width_cm [bool] <- products_metadata_flags.dq_missing_width_cm: reused from staging products_metadata_flags (product_width_cm missing) (4.3)",
+        "+ dq_listing_metadata_missing [bool] <- products_metadata_flags.dq_listing_metadata_missing: reused from staging products_metadata_flags (all fields of the group missing) (4.3)",
+        "+ dq_physical_attributes_missing [bool] <- products_metadata_flags.dq_physical_attributes_missing: reused from staging products_metadata_flags (all fields of the group missing) (4.3)",
+        "+ dq_all_attributes_missing [bool] <- products_metadata_flags.dq_all_attributes_missing: reused from staging products_metadata_flags (all fields of the group missing) (4.3)",
+        "+ dq_weight_zero [bool] <- product_weight_g: product_weight_g = 0 (D-09)",
+        "+ weight_g_valid [Int64] <- product_weight_g: product_weight_g, set to missing where dq_weight_zero (analysis column) (D-09)",
+        "+ dq_density_suspicious [bool] <- product_weight_g, product_length_cm, product_height_cm, product_width_cm: weight / (length x height x width) > 2.0 g/cm3; missing inputs -> False (D-09 / Q-06)",
+        "+ dq_dims_16x2x11 [bool] <- product_length_cm, product_height_cm, product_width_cm: dimensions exactly 16 x 2 x 11 cm (D-09 / Q-06)",
+        "+ category_en_clean [string] <- product_category_name, category_map.category_en_clean: category_map label via many_to_one join; missing where the category is missing (D-12)",
+        "+ category_reporting [string] <- product_category_name, category_en_clean: category_en_clean; explicit unknown label where the raw category is missing (D-12 / Q-05)"
+      ]
+    },
+    {
+      "output_dataset": "sellers",
+      "kind": "source",
+      "grain": "one seller (seller_id)",
+      "path": "data/processed/clean/sellers.parquet",
+      "source_datasets": [
+        "sellers",
+        "geolocation_points",
+        "geolocation_rows"
+      ],
+      "rows_in": 3095,
+      "rows_out": 3095,
+      "columns": 10,
+      "sha256": "ba056c72650924f51af2d6f6edf698cbf729b84c51bf8ac0e7e5610300b08dc6",
+      "content_sha256": "5999c32729b7993d9d081028a0268822d564fac6caf401048ebb9ef5204fe023",
+      "added_columns": [
+        "city_key",
+        "seller_state_std",
+        "dq_city_malformed",
+        "lat_centroid",
+        "lng_centroid",
+        "dq_no_geolocation"
+      ],
+      "flag_counts": {
+        "dq_city_malformed": 24,
+        "dq_no_geolocation": 7
+      },
+      "schema": {
+        "seller_id": "string",
+        "seller_zip_code_prefix": "string",
+        "seller_city": "string",
+        "seller_state": "category",
+        "city_key": "string",
+        "seller_state_std": "category",
+        "dq_city_malformed": "bool",
+        "lat_centroid": "float64",
+        "lng_centroid": "float64",
+        "dq_no_geolocation": "bool"
+      },
+      "missing_values": {
+        "seller_id": 0,
+        "seller_zip_code_prefix": 0,
+        "seller_city": 0,
+        "seller_state": 0,
+        "city_key": 0,
+        "seller_state_std": 0,
+        "dq_city_malformed": 0,
+        "lat_centroid": 7,
+        "lng_centroid": 7,
+        "dq_no_geolocation": 0
+      },
+      "transformations": [
+        "+ city_key [string] <- seller_city: accent-free, lower case, trimmed (malformed values not repaired) (D-11)",
+        "+ seller_state_std [category] <- seller_state: upper case, trimmed; validated against the 27 UFs (8.1)",
+        "+ dq_city_malformed [bool] <- seller_city: seller_city matches '[\\\\d/\\\\\\\\@,]|\\\\s-\\\\s' (D-11 / Q-12)",
+        "+ lat_centroid [float64] <- zip_lookup.lat_centroid: zip_lookup centroid via many_to_one join on zip prefix (D-10.4)",
+        "+ lng_centroid [float64] <- zip_lookup.lng_centroid: zip_lookup centroid via many_to_one join on zip prefix (D-10.4)",
+        "+ dq_no_geolocation [bool] <- zip_lookup: zip absent from zip_lookup, or zip has no valid point (centroid missing) (D-10.4)"
+      ]
+    },
+    {
+      "output_dataset": "translation",
+      "kind": "source",
+      "grain": "one category name mapping (product_category_name)",
+      "path": "data/processed/clean/translation.parquet",
+      "source_datasets": [
+        "translation"
+      ],
+      "rows_in": 71,
+      "rows_out": 71,
+      "columns": 2,
+      "sha256": "42bdf9a9cd4197501f34f30c832b249ef905926969f4fea0dde62302d30abfb5",
+      "content_sha256": "c6ac0fa3b8e216fc8aa140d5e422f47c1ef6dbf0cfcd0c03a8c649f962e50ea0",
+      "added_columns": [],
+      "flag_counts": {},
+      "schema": {
+        "product_category_name": "string",
+        "product_category_name_english": "string"
+      },
+      "missing_values": {
+        "product_category_name": 0,
+        "product_category_name_english": 0
+      },
+      "transformations": [
+        "no change (label corrections live in category_map, D-12)"
+      ]
+    },
+    {
+      "output_dataset": "category_map",
+      "kind": "reference",
+      "grain": "one Portuguese category (product_category_name)",
+      "path": "data/processed/clean/category_map.parquet",
+      "source_datasets": [
+        "translation",
+        "products"
+      ],
+      "rows_in": 71,
+      "rows_out": 73,
+      "columns": 5,
+      "sha256": "2c20098ca1f68c981b38738e03c5125c67992ecb5b28da0e5f80c7e5cff84b9e",
+      "content_sha256": "4e292a76841681c095ecd410155b8e5e5baa7cd04bb83a25bbe86f40b594eab8",
+      "added_columns": [],
+      "flag_counts": {},
+      "schema": {
+        "product_category_name": "string",
+        "category_en_source": "string",
+        "category_en_clean": "string",
+        "is_added_by_project": "bool",
+        "note": "string"
+      },
+      "missing_values": {
+        "product_category_name": 0,
+        "category_en_source": 2,
+        "category_en_clean": 0,
+        "is_added_by_project": 0,
+        "note": 65
+      },
+      "transformations": [
+        "one row per Portuguese category; category_map version 1.0.0",
+        "category_en_source = source translation (unchanged, missing when untranslated)",
+        "category_en_clean = source translation with the 4 typo corrections; 2 project-added translations (provisional, Q-05)",
+        "'_2' twins kept separate (Q-05)"
+      ]
+    },
+    {
+      "output_dataset": "zip_lookup",
+      "kind": "reference",
+      "grain": "one zip prefix (geolocation_zip_code_prefix)",
+      "path": "data/processed/clean/zip_lookup.parquet",
+      "source_datasets": [
+        "geolocation_points",
+        "geolocation_rows"
+      ],
+      "rows_in": 720154,
+      "rows_out": 19015,
+      "columns": 9,
+      "sha256": "3a2f4c025590845e25b7bab571e6bad47096c2d6ac0ba1a590f6d6a70250302b",
+      "content_sha256": "72d984aacacdbaa9b40243cb25d83338111bafb09aae029708210dd22c04298c",
+      "added_columns": [],
+      "flag_counts": {
+        "dq_zip_multi_state": 8,
+        "dq_zip_no_valid_point": 5
+      },
+      "schema": {
+        "geolocation_zip_code_prefix": "string",
+        "lat_centroid": "float64",
+        "lng_centroid": "float64",
+        "n_points_used": "int64",
+        "n_points_excluded_outside_brazil": "int64",
+        "raw_rows_represented": "int64",
+        "n_distinct_states": "int64",
+        "dq_zip_multi_state": "bool",
+        "dq_zip_no_valid_point": "bool"
+      },
+      "missing_values": {
+        "geolocation_zip_code_prefix": 0,
+        "lat_centroid": 5,
+        "lng_centroid": 5,
+        "n_points_used": 0,
+        "n_points_excluded_outside_brazil": 0,
+        "raw_rows_represented": 0,
+        "n_distinct_states": 0,
+        "dq_zip_multi_state": 0,
+        "dq_zip_no_valid_point": 0
+      },
+      "transformations": [
+        "one row per zip prefix of geolocation_points (D-10.3)",
+        "lat/lng_centroid = component-wise median over distinct points with dq_outside_brazil False, unweighted",
+        "n_points_used, n_points_excluded_outside_brazil, raw_rows_represented (sum of raw_row_count over used points)",
+        "n_distinct_states over the zip's geolocation_rows; dq_zip_multi_state = n_distinct_states > 1",
+        "dq_zip_no_valid_point = no valid point (centroids missing)"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "step": "zip_lookup from geolocation_points (unweighted median of distinct in-Brazil points)",
+      "decision": "D-10",
+      "inputs": {
+        "geolocation_points": 720154,
+        "geolocation_rows": 738332
+      },
+      "output": "zip_lookup",
+      "rows_out": 19015
+    },
+    {
+      "step": "category_map (source translation + project overrides)",
+      "decision": "D-12",
+      "inputs": {
+        "translation": 71,
+        "products": 32951
+      },
+      "output": "category_map",
+      "rows_out": 73
+    },
+    {
+      "step": "customers: city_key, state_std, centroid lookup",
+      "decision": "D-11 / D-10.4",
+      "inputs": {
+        "customers": 99441
+      },
+      "output": "customers",
+      "rows_out": 99441
+    },
+    {
+      "step": "sellers: city_key, state_std, centroid lookup",
+      "decision": "D-11 / D-10.4",
+      "inputs": {
+        "sellers": 3095
+      },
+      "output": "sellers",
+      "rows_out": 3095
+    },
+    {
+      "step": "geolocation: geolocation_city_std, city_key, state_std",
+      "decision": "D-11",
+      "inputs": {
+        "geolocation": 1000163
+      },
+      "output": "geolocation",
+      "rows_out": 1000163
+    },
+    {
+      "step": "orders: delivered-gap, chronology, status and same-second flags",
+      "decision": "D-06 / D-07 / D-08",
+      "inputs": {
+        "orders": 99441,
+        "customers": 99441
+      },
+      "output": "orders",
+      "rows_out": 99441
+    },
+    {
+      "step": "order_items: shipping-limit range flag (source grain kept)",
+      "decision": "D-08",
+      "inputs": {
+        "order_items": 112650,
+        "orders": 99441
+      },
+      "output": "order_items",
+      "rows_out": 112650
+    },
+    {
+      "step": "payments: zero-value and zero-instalment flags",
+      "decision": "D-09 / D-16",
+      "inputs": {
+        "payments": 103886
+      },
+      "output": "payments",
+      "rows_out": 103886
+    },
+    {
+      "step": "reviews: comment presence, duplicate and timing flags",
+      "decision": "4.2 / D-07 / D-08",
+      "inputs": {
+        "reviews": 99224,
+        "orders": 99441
+      },
+      "output": "reviews",
+      "rows_out": 99224
+    },
+    {
+      "step": "products: staging metadata flags (reused), D-09 flags, category_map labels",
+      "decision": "4.3 / D-09 / D-12",
+      "inputs": {
+        "products": 32951,
+        "products_metadata_flags": 32951
+      },
+      "output": "products",
+      "rows_out": 32951
+    },
+    {
+      "step": "translation: unchanged (corrections live in category_map)",
+      "decision": "D-12",
+      "inputs": {
+        "translation": 71
+      },
+      "output": "translation",
+      "rows_out": 71
+    }
+  ],
+  "notes": [],
+  "checks": [
+    {
+      "check_id": "V01",
+      "check_class": "blocking",
+      "description": "raw files unchanged from run start to validation (SHA-256); baseline verified",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "S01.customers",
+      "check_class": "blocking",
+      "description": "staging customers: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.geolocation",
+      "check_class": "blocking",
+      "description": "staging geolocation: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.orders",
+      "check_class": "blocking",
+      "description": "staging orders: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.order_items",
+      "check_class": "blocking",
+      "description": "staging order_items: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.payments",
+      "check_class": "blocking",
+      "description": "staging payments: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.reviews",
+      "check_class": "blocking",
+      "description": "staging reviews: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.products",
+      "check_class": "blocking",
+      "description": "staging products: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.sellers",
+      "check_class": "blocking",
+      "description": "staging sellers: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.translation",
+      "check_class": "blocking",
+      "description": "staging translation: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.geolocation_rows",
+      "check_class": "blocking",
+      "description": "staging geolocation_rows: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.geolocation_points",
+      "check_class": "blocking",
+      "description": "staging geolocation_points: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S01.products_metadata_flags",
+      "check_class": "blocking",
+      "description": "staging products_metadata_flags: lineage present and its source SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "S02",
+      "check_class": "blocking",
+      "description": "all staging inputs come from one staging run",
+      "expected": 1,
+      "observed": 1,
+      "passed": true
+    },
+    {
+      "check_id": "V14.customers.rows",
+      "check_class": "blocking",
+      "description": "customers: clean rows = staged rows (none added or removed)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V03.customers",
+      "check_class": "blocking",
+      "description": "customers: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.customers",
+      "check_class": "blocking",
+      "description": "customers: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.customers",
+      "check_class": "blocking",
+      "description": "customers: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.customers",
+      "check_class": "blocking",
+      "description": "customers: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.customers",
+      "check_class": "blocking",
+      "description": "customers: primary key ('customer_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.geolocation.rows",
+      "check_class": "blocking",
+      "description": "geolocation: clean rows = staged rows (none added or removed)",
+      "expected": 1000163,
+      "observed": 1000163,
+      "passed": true
+    },
+    {
+      "check_id": "V03.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.orders.rows",
+      "check_class": "blocking",
+      "description": "orders: clean rows = staged rows (none added or removed)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V03.orders",
+      "check_class": "blocking",
+      "description": "orders: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.orders",
+      "check_class": "blocking",
+      "description": "orders: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.orders",
+      "check_class": "blocking",
+      "description": "orders: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.orders",
+      "check_class": "blocking",
+      "description": "orders: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.orders",
+      "check_class": "blocking",
+      "description": "orders: primary key ('order_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.order_items.rows",
+      "check_class": "blocking",
+      "description": "order_items: clean rows = staged rows (none added or removed)",
+      "expected": 112650,
+      "observed": 112650,
+      "passed": true
+    },
+    {
+      "check_id": "V03.order_items",
+      "check_class": "blocking",
+      "description": "order_items: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.order_items",
+      "check_class": "blocking",
+      "description": "order_items: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.order_items",
+      "check_class": "blocking",
+      "description": "order_items: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.order_items",
+      "check_class": "blocking",
+      "description": "order_items: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.order_items",
+      "check_class": "blocking",
+      "description": "order_items: primary key ('order_id', 'order_item_id') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.payments.rows",
+      "check_class": "blocking",
+      "description": "payments: clean rows = staged rows (none added or removed)",
+      "expected": 103886,
+      "observed": 103886,
+      "passed": true
+    },
+    {
+      "check_id": "V03.payments",
+      "check_class": "blocking",
+      "description": "payments: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.payments",
+      "check_class": "blocking",
+      "description": "payments: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.payments",
+      "check_class": "blocking",
+      "description": "payments: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.payments",
+      "check_class": "blocking",
+      "description": "payments: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.payments",
+      "check_class": "blocking",
+      "description": "payments: primary key ('order_id', 'payment_sequential') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.reviews.rows",
+      "check_class": "blocking",
+      "description": "reviews: clean rows = staged rows (none added or removed)",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "V03.reviews",
+      "check_class": "blocking",
+      "description": "reviews: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.reviews",
+      "check_class": "blocking",
+      "description": "reviews: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.reviews",
+      "check_class": "blocking",
+      "description": "reviews: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.reviews",
+      "check_class": "blocking",
+      "description": "reviews: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.reviews",
+      "check_class": "blocking",
+      "description": "reviews: primary key ('review_id', 'order_id') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.products.rows",
+      "check_class": "blocking",
+      "description": "products: clean rows = staged rows (none added or removed)",
+      "expected": 32951,
+      "observed": 32951,
+      "passed": true
+    },
+    {
+      "check_id": "V03.products",
+      "check_class": "blocking",
+      "description": "products: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.products",
+      "check_class": "blocking",
+      "description": "products: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.products",
+      "check_class": "blocking",
+      "description": "products: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.products",
+      "check_class": "blocking",
+      "description": "products: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.products",
+      "check_class": "blocking",
+      "description": "products: primary key ('product_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.sellers.rows",
+      "check_class": "blocking",
+      "description": "sellers: clean rows = staged rows (none added or removed)",
+      "expected": 3095,
+      "observed": 3095,
+      "passed": true
+    },
+    {
+      "check_id": "V03.sellers",
+      "check_class": "blocking",
+      "description": "sellers: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.sellers",
+      "check_class": "blocking",
+      "description": "sellers: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.sellers",
+      "check_class": "blocking",
+      "description": "sellers: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.sellers",
+      "check_class": "blocking",
+      "description": "sellers: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.sellers",
+      "check_class": "blocking",
+      "description": "sellers: primary key ('seller_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V14.translation.rows",
+      "check_class": "blocking",
+      "description": "translation: clean rows = staged rows (none added or removed)",
+      "expected": 71,
+      "observed": 71,
+      "passed": true
+    },
+    {
+      "check_id": "V03.translation",
+      "check_class": "blocking",
+      "description": "translation: columns = staged columns + declared additions, with declared dtypes",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V14.translation",
+      "check_class": "blocking",
+      "description": "translation: every source column identical to staging (values, order, dtype)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.translation",
+      "check_class": "blocking",
+      "description": "translation: missing count per source column = staging",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "F01.translation",
+      "check_class": "blocking",
+      "description": "translation: every flag column is boolean with no missing value",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.translation",
+      "check_class": "blocking",
+      "description": "translation: primary key ('product_category_name',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V03.category_map",
+      "check_class": "blocking",
+      "description": "category_map: columns and dtypes match the reference schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.zip_lookup",
+      "check_class": "blocking",
+      "description": "zip_lookup: columns and dtypes match the reference schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V05.orders.customer_id",
+      "check_class": "blocking",
+      "description": "orders.customer_id -> customers.customer_id: no orphans in clean",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.order_items.order_id",
+      "check_class": "blocking",
+      "description": "order_items.order_id -> orders.order_id: no orphans in clean",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.payments.order_id",
+      "check_class": "blocking",
+      "description": "payments.order_id -> orders.order_id: no orphans in clean",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.reviews.order_id",
+      "check_class": "blocking",
+      "description": "reviews.order_id -> orders.order_id: no orphans in clean",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.order_items.product_id",
+      "check_class": "blocking",
+      "description": "order_items.product_id -> products.product_id: no orphans in clean",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.order_items.seller_id",
+      "check_class": "blocking",
+      "description": "order_items.seller_id -> sellers.seller_id: no orphans in clean",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V06.customers",
+      "check_class": "blocking",
+      "description": "customers.customer_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V06.sellers",
+      "check_class": "blocking",
+      "description": "sellers.seller_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V06.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation.geolocation_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V06.zip_lookup",
+      "check_class": "blocking",
+      "description": "zip_lookup.geolocation_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V09.order_items.price",
+      "check_class": "blocking",
+      "description": "order_items.price: clean sum = staged sum (same run)",
+      "expected": 13591643.7,
+      "observed": 13591643.7,
+      "passed": true
+    },
+    {
+      "check_id": "V09.order_items.freight_value",
+      "check_class": "blocking",
+      "description": "order_items.freight_value: clean sum = staged sum (same run)",
+      "expected": 2251909.54,
+      "observed": 2251909.54,
+      "passed": true
+    },
+    {
+      "check_id": "V09.payments.payment_value",
+      "check_class": "blocking",
+      "description": "payments.payment_value: clean sum = staged sum (same run)",
+      "expected": 16008872.120000001,
+      "observed": 16008872.120000001,
+      "passed": true
+    },
+    {
+      "check_id": "V12.zip_key_unique",
+      "check_class": "blocking",
+      "description": "zip_lookup: zip key unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V12.zip_set",
+      "check_class": "blocking",
+      "description": "zip_lookup: exactly the zip prefixes of geolocation_points",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "V12.customers_join_rows",
+      "check_class": "blocking",
+      "description": "customers keep their row count through the zip_lookup join",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V12.sellers_join_rows",
+      "check_class": "blocking",
+      "description": "sellers keep their row count through the zip_lookup join",
+      "expected": 3095,
+      "observed": 3095,
+      "passed": true
+    },
+    {
+      "check_id": "V12.points_accounted",
+      "check_class": "blocking",
+      "description": "per zip, n_points_used + n_points_excluded_outside_brazil = its distinct points (total = points rows)",
+      "expected": [
+        0,
+        720154
+      ],
+      "observed": [
+        0,
+        720154
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V12.no_valid_point_consistency",
+      "check_class": "blocking",
+      "description": "centroids are missing exactly where dq_zip_no_valid_point (both axes together)",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "V12.centroid_plausible",
+      "check_class": "blocking",
+      "description": "every centroid lies in the bounding box and within its zip's used points on each axis",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "F02.products_metadata_flags",
+      "check_class": "blocking",
+      "description": "clean products carry the staging products_metadata_flags unchanged",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "V04.category_map",
+      "check_class": "blocking",
+      "description": "category_map: key unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "M01.category_map_coverage",
+      "check_class": "blocking",
+      "description": "every non-missing product category maps to exactly one category_map row",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.customers",
+      "check_class": "regression",
+      "description": "customers: clean row count (NB01)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.geolocation",
+      "check_class": "regression",
+      "description": "geolocation: clean row count (NB01)",
+      "expected": 1000163,
+      "observed": 1000163,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.orders",
+      "check_class": "regression",
+      "description": "orders: clean row count (NB01)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.order_items",
+      "check_class": "regression",
+      "description": "order_items: clean row count (NB01)",
+      "expected": 112650,
+      "observed": 112650,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.payments",
+      "check_class": "regression",
+      "description": "payments: clean row count (NB01)",
+      "expected": 103886,
+      "observed": 103886,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.reviews",
+      "check_class": "regression",
+      "description": "reviews: clean row count (NB01)",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.products",
+      "check_class": "regression",
+      "description": "products: clean row count (NB01)",
+      "expected": 32951,
+      "observed": 32951,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.sellers",
+      "check_class": "regression",
+      "description": "sellers: clean row count (NB01)",
+      "expected": 3095,
+      "observed": 3095,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.translation",
+      "check_class": "regression",
+      "description": "translation: clean row count (NB01)",
+      "expected": 71,
+      "observed": 71,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_carrier_before_purchase",
+      "check_class": "regression",
+      "description": "orders.dq_carrier_before_purchase count (strategy 11.3.1)",
+      "expected": 166,
+      "observed": 166,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_delivered_before_carrier",
+      "check_class": "regression",
+      "description": "orders.dq_delivered_before_carrier count (strategy 11.3.1)",
+      "expected": 23,
+      "observed": 23,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_carrier_before_approval",
+      "check_class": "regression",
+      "description": "orders.dq_carrier_before_approval count (strategy 11.3.1)",
+      "expected": 1359,
+      "observed": 1359,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_delivered_before_approval",
+      "check_class": "regression",
+      "description": "orders.dq_delivered_before_approval count (strategy 11.3.1)",
+      "expected": 61,
+      "observed": 61,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_delivered_missing_delivery_date",
+      "check_class": "regression",
+      "description": "orders.dq_delivered_missing_delivery_date count (strategy 11.3.1)",
+      "expected": 8,
+      "observed": 8,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_delivered_missing_approval",
+      "check_class": "regression",
+      "description": "orders.dq_delivered_missing_approval count (strategy 11.3.1)",
+      "expected": 14,
+      "observed": 14,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_delivered_missing_carrier_date",
+      "check_class": "regression",
+      "description": "orders.dq_delivered_missing_carrier_date count (strategy 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_status_canceled_with_date",
+      "check_class": "regression",
+      "description": "orders.dq_status_canceled_with_date count (strategy 11.3.1)",
+      "expected": 6,
+      "observed": 6,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_same_person_same_second",
+      "check_class": "regression",
+      "description": "orders.dq_same_person_same_second count (strategy 11.3.1)",
+      "expected": 582,
+      "observed": 582,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_shipping_limit_out_of_range",
+      "check_class": "regression",
+      "description": "order_items.dq_shipping_limit_out_of_range count (strategy 11.3.1)",
+      "expected": 4,
+      "observed": 4,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_review_before_purchase",
+      "check_class": "regression",
+      "description": "reviews.dq_review_before_purchase count (strategy 11.3.1)",
+      "expected": 64,
+      "observed": 64,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_review_id_shared",
+      "check_class": "regression",
+      "description": "reviews.dq_review_id_shared count (strategy 11.3.1)",
+      "expected": 1603,
+      "observed": 1603,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_review_content_duplicate",
+      "check_class": "regression",
+      "description": "reviews.dq_review_content_duplicate count (strategy 11.3.1)",
+      "expected": 86,
+      "observed": 86,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_weight_zero",
+      "check_class": "regression",
+      "description": "products.dq_weight_zero count (strategy 11.3.1)",
+      "expected": 4,
+      "observed": 4,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_density_suspicious",
+      "check_class": "regression",
+      "description": "products.dq_density_suspicious count (strategy 11.3.1)",
+      "expected": 159,
+      "observed": 159,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_dims_16x2x11",
+      "check_class": "regression",
+      "description": "products.dq_dims_16x2x11 count (strategy 11.3.1)",
+      "expected": 588,
+      "observed": 588,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_installments_zero",
+      "check_class": "regression",
+      "description": "payments.dq_installments_zero count (strategy 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_payment_zero",
+      "check_class": "regression",
+      "description": "payments.dq_payment_zero count (strategy 11.3.1)",
+      "expected": 9,
+      "observed": 9,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_city_malformed",
+      "check_class": "regression",
+      "description": "sellers.dq_city_malformed count (strategy 11.3.1)",
+      "expected": 24,
+      "observed": 24,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_zip_multi_state",
+      "check_class": "regression",
+      "description": "zip_lookup.dq_zip_multi_state count (strategy 11.3.1)",
+      "expected": 8,
+      "observed": 8,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_category",
+      "check_class": "regression",
+      "description": "products.dq_missing_category count (strategy 4.3 / 11.3.1)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_name_length",
+      "check_class": "regression",
+      "description": "products.dq_missing_name_length count (strategy 4.3 / 11.3.1)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_description_length",
+      "check_class": "regression",
+      "description": "products.dq_missing_description_length count (strategy 4.3 / 11.3.1)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_photos_qty",
+      "check_class": "regression",
+      "description": "products.dq_missing_photos_qty count (strategy 4.3 / 11.3.1)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_weight_g",
+      "check_class": "regression",
+      "description": "products.dq_missing_weight_g count (strategy 4.3 / 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_length_cm",
+      "check_class": "regression",
+      "description": "products.dq_missing_length_cm count (strategy 4.3 / 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_height_cm",
+      "check_class": "regression",
+      "description": "products.dq_missing_height_cm count (strategy 4.3 / 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_width_cm",
+      "check_class": "regression",
+      "description": "products.dq_missing_width_cm count (strategy 4.3 / 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_listing_metadata_missing",
+      "check_class": "regression",
+      "description": "products.dq_listing_metadata_missing count (strategy 4.3 / 11.3.1)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_physical_attributes_missing",
+      "check_class": "regression",
+      "description": "products.dq_physical_attributes_missing count (strategy 4.3 / 11.3.1)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_all_attributes_missing",
+      "check_class": "regression",
+      "description": "products.dq_all_attributes_missing count (strategy 4.3 / 11.3.1)",
+      "expected": 1,
+      "observed": 1,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag_equivalence.listing",
+      "check_class": "regression",
+      "description": "listing fields: products with ANY missing = products with ALL missing (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag_equivalence.physical",
+      "check_class": "regression",
+      "description": "physical fields: products with ANY missing = products with ALL missing (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.price_le_0",
+      "check_class": "regression",
+      "description": "domain rule price_le_0 (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.freight_lt_0",
+      "check_class": "regression",
+      "description": "domain rule freight_lt_0 (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.freight_eq_0",
+      "check_class": "regression",
+      "description": "domain rule freight_eq_0 (strategy 11.3.2)",
+      "expected": 383,
+      "observed": 383,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.payment_lt_0",
+      "check_class": "regression",
+      "description": "domain rule payment_lt_0 (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.payment_eq_0",
+      "check_class": "regression",
+      "description": "domain rule payment_eq_0 (strategy 11.3.2)",
+      "expected": 9,
+      "observed": 9,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.installments_lt_1",
+      "check_class": "regression",
+      "description": "domain rule installments_lt_1 (strategy 11.3.2)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.installments_gt_1_non_credit_card",
+      "check_class": "regression",
+      "description": "domain rule installments_gt_1_non_credit_card (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.review_score_outside_1_5",
+      "check_class": "regression",
+      "description": "domain rule review_score_outside_1_5 (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.weight_le_0",
+      "check_class": "regression",
+      "description": "domain rule weight_le_0 (strategy 11.3.2)",
+      "expected": 4,
+      "observed": 4,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.any_dimension_le_0",
+      "check_class": "regression",
+      "description": "domain rule any_dimension_le_0 (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.photos_lt_1",
+      "check_class": "regression",
+      "description": "domain rule photos_lt_1 (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.customers_state_not_uf",
+      "check_class": "regression",
+      "description": "domain rule customers_state_not_uf (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.sellers_state_not_uf",
+      "check_class": "regression",
+      "description": "domain rule sellers_state_not_uf (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.geolocation_state_not_uf",
+      "check_class": "regression",
+      "description": "domain rule geolocation_state_not_uf (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.order_status_outside_vocabulary",
+      "check_class": "regression",
+      "description": "domain rule order_status_outside_vocabulary (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.payment_type_outside_vocabulary",
+      "check_class": "regression",
+      "description": "domain rule payment_type_outside_vocabulary (strategy 11.3.2)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.weight_le_0_rows",
+      "check_class": "regression",
+      "description": "rows with weight <= 0 are exactly the dq_weight_zero rows",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.payment_eq_0_rows",
+      "check_class": "regression",
+      "description": "rows with payment_value = 0 are exactly the dq_payment_zero rows",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "R.domain.installments_lt_1_rows",
+      "check_class": "regression",
+      "description": "rows with installments < 1 are exactly the dq_installments_zero rows, all credit_card",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "R.total.order_items.price",
+      "check_class": "regression",
+      "description": "order_items.price: sum (NB02/NB03)",
+      "expected": 13591643.7,
+      "observed": 13591643.7,
+      "passed": true
+    },
+    {
+      "check_id": "R.total.order_items.freight_value",
+      "check_class": "regression",
+      "description": "order_items.freight_value: sum (NB02/NB03)",
+      "expected": 2251909.54,
+      "observed": 2251909.54,
+      "passed": true
+    },
+    {
+      "check_id": "R.total.payments.payment_value",
+      "check_class": "regression",
+      "description": "payments.payment_value: sum (NB02/NB03)",
+      "expected": 16008872.12,
+      "observed": 16008872.12,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.distinct_review_id",
+      "check_class": "regression",
+      "description": "distinct_review_id (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 98410,
+      "observed": 98410,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.distinct_customer_unique_id",
+      "check_class": "regression",
+      "description": "distinct_customer_unique_id (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 96096,
+      "observed": 96096,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.untranslated_products_before_map",
+      "check_class": "regression",
+      "description": "untranslated_products_before_map (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 13,
+      "observed": 13,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.untranslated_products_after_map",
+      "check_class": "regression",
+      "description": "untranslated_products_after_map (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.category_map_rows",
+      "check_class": "regression",
+      "description": "category_map_rows (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 73,
+      "observed": 73,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.missing_category_products",
+      "check_class": "regression",
+      "description": "missing_category_products (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.zip_lookup_rows",
+      "check_class": "regression",
+      "description": "zip_lookup_rows (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 19015,
+      "observed": 19015,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.customers_zip_absent",
+      "check_class": "regression",
+      "description": "customers_zip_absent (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 278,
+      "observed": 278,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.sellers_zip_absent",
+      "check_class": "regression",
+      "description": "sellers_zip_absent (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 7,
+      "observed": 7,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.city_key_distinct_customers",
+      "check_class": "regression",
+      "description": "city_key_distinct_customers (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 4119,
+      "observed": 4119,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.city_key_distinct_sellers",
+      "check_class": "regression",
+      "description": "city_key_distinct_sellers (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 609,
+      "observed": 609,
+      "passed": true
+    },
+    {
+      "check_id": "R.structure.city_key_distinct_geolocation",
+      "check_class": "regression",
+      "description": "city_key_distinct_geolocation (strategy 11.3.3 / D-07 / D-11 / D-12)",
+      "expected": 5966,
+      "observed": 5966,
+      "passed": true
+    },
+    {
+      "check_id": "W03",
+      "check_class": "warning",
+      "description": "zips with dq_zip_no_valid_point (centroid missing; not measured in NB01-03)",
+      "expected": null,
+      "observed": 5,
+      "passed": null
+    },
+    {
+      "check_id": "W04",
+      "check_class": "warning",
+      "description": "customers / sellers that receive a centroid via zip_lookup",
+      "expected": null,
+      "observed": {
+        "customers": {
+          "with_centroid": 99162,
+          "dq_no_geolocation": 279,
+          "share_pct": 99.719
+        },
+        "sellers": {
+          "with_centroid": 3088,
+          "dq_no_geolocation": 7,
+          "share_pct": 99.774
+        }
+      },
+      "passed": null
+    },
+    {
+      "check_id": "W.review_before_delivery",
+      "check_class": "warning",
+      "description": "reviews flagged dq_review_before_delivery (informational; NB03 5.5 measured 5,127)",
+      "expected": null,
+      "observed": 5127,
+      "passed": null
+    },
+    {
+      "check_id": "W.category_overrides_not_applied",
+      "check_class": "warning",
+      "description": "category_map overrides with no matching source row",
+      "expected": null,
+      "observed": [],
+      "passed": null
+    },
+    {
+      "check_id": "P01.customers",
+      "check_class": "blocking",
+      "description": "customers: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.orders",
+      "check_class": "blocking",
+      "description": "orders: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.order_items",
+      "check_class": "blocking",
+      "description": "order_items: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.payments",
+      "check_class": "blocking",
+      "description": "payments: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.reviews",
+      "check_class": "blocking",
+      "description": "reviews: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.products",
+      "check_class": "blocking",
+      "description": "products: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.sellers",
+      "check_class": "blocking",
+      "description": "sellers: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.translation",
+      "check_class": "blocking",
+      "description": "translation: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.category_map",
+      "check_class": "blocking",
+      "description": "category_map: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.zip_lookup",
+      "check_class": "blocking",
+      "description": "zip_lookup: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "V01.end",
+      "check_class": "blocking",
+      "description": "raw files unchanged at the end of the run (SHA-256)",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    }
+  ]
+}
