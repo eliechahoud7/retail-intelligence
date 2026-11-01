@@ -1,0 +1,1925 @@
+{
+  "run_id": "baea48c9b8ac",
+  "layer": "analytical",
+  "executed_at_utc": "2026-11-01T20:47:25+00:00",
+  "finished_at_utc": "2026-11-01T20:47:43+00:00",
+  "git": {
+    "commit": "6d2ca67039044cb6d69d26d6325a13405aafd4fc",
+    "dirty": false
+  },
+  "code_sha256": "c75764756e24bfb5d442f34018daaeb23d115e94fc42e2980e9ae28a51cceb84",
+  "environment": {
+    "python": "3.12.10",
+    "pandas": "3.1.0",
+    "numpy": "2.5.4",
+    "pyarrow": "26.0.0"
+  },
+  "raw_dir": "data/raw",
+  "clean_dir": "data/processed/clean",
+  "clean_run_id": "cdc88ffb32ce",
+  "output_dir": "data/processed/analytical",
+  "manifest": "data/processed/_manifest/baea48c9b8ac.json",
+  "baseline_verified": true,
+  "outputs_written": true,
+  "success": true,
+  "parameters": {
+    "candidate_window_purchase_months": [
+      "2017-01",
+      "2018-08"
+    ],
+    "candidate_window_applied_as": "flag in_candidate_window (no rows removed; Q-11 open)",
+    "payment_mismatch_tolerance": 0.01,
+    "payment_minus_items_rounding_decimals": 2,
+    "order_line_grain": [
+      "order_id",
+      "product_id",
+      "seller_id",
+      "price",
+      "freight_value",
+      "shipping_limit_date"
+    ],
+    "delivered_variant_status": "delivered",
+    "duration_rule": "each duration is missing where an input is missing or its D-08 chronology flag is True",
+    "date_only_comparisons": "delivery vs estimated delivery compared at day level"
+  },
+  "decisions": {
+    "Q-11": "candidate window 2017-01..2018-08 applied as a flag only; W05 reports rows outside it",
+    "Q-04": "fact_orders carries review_count only; no order-level score",
+    "eligibility": "dim_customers measures in two labelled variants: all orders, and status = delivered",
+    "location": "customer location kept per order in fact_orders; dim_customers has no chosen address",
+    "Q-03": "item-based and payment-based totals are separate, labelled columns; never combined into one revenue",
+    "Q-16": "orders without items / payments are kept; their counts are 0 and their totals missing (not 0)",
+    "D-16": "max_installments ignores dq_installments_zero rows; payment totals include them"
+  },
+  "check_summary": {
+    "blocking": {
+      "total": 101,
+      "passed": 101,
+      "failed": 0
+    },
+    "regression": {
+      "total": 19,
+      "passed": 19,
+      "failed": 0
+    },
+    "warning": {
+      "total": 4,
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "outputs": [
+    {
+      "output_dataset": "fact_order_lines",
+      "kind": "fact",
+      "purpose": "Product, category, seller and demand analysis: units sold and item-based sales per line (D-15)",
+      "grain": "one order line = order_items rows identical in (order_id, product_id, seller_id, price, freight_value, shipping_limit_date)",
+      "primary_key": [
+        "order_line_id"
+      ],
+      "foreign_keys": [
+        "order_id -> fact_orders.order_id",
+        "product_id -> dim_products.product_id",
+        "seller_id -> dim_sellers.seller_id",
+        "customer_unique_id -> dim_customers.customer_unique_id",
+        "purchase_date -> dim_dates.date"
+      ],
+      "sources": [
+        "clean.order_items",
+        "clean.orders",
+        "clean.customers"
+      ],
+      "path": "data/processed/analytical/fact_order_lines.parquet",
+      "rows": 102425,
+      "columns": 18,
+      "sha256": "78369c8c2bf9dff78003b0cedf46ad7d1ce67496d3be811a62cca9e2d5a29949",
+      "content_sha256": "809e844f6dd0a3505702a3a90886804db07df7716adae9496b5e7c969ce1c469",
+      "schema": {
+        "order_line_id": "string",
+        "order_id": "string",
+        "first_order_item_id": "Int64",
+        "product_id": "string",
+        "seller_id": "string",
+        "shipping_limit_date": "datetime64[us]",
+        "quantity": "int64",
+        "unit_price": "float64",
+        "freight_value_per_row": "float64",
+        "line_price_total": "float64",
+        "freight_total": "float64",
+        "order_item_ids": "object",
+        "dq_shipping_limit_out_of_range": "bool",
+        "customer_unique_id": "string",
+        "order_status": "category",
+        "order_purchase_timestamp": "datetime64[us]",
+        "purchase_date": "datetime64[us]",
+        "in_candidate_window": "bool"
+      },
+      "missing_values": {
+        "order_line_id": 0,
+        "order_id": 0,
+        "first_order_item_id": 0,
+        "product_id": 0,
+        "seller_id": 0,
+        "shipping_limit_date": 0,
+        "quantity": 0,
+        "unit_price": 0,
+        "freight_value_per_row": 0,
+        "line_price_total": 0,
+        "freight_total": 0,
+        "order_item_ids": 0,
+        "dq_shipping_limit_out_of_range": 0,
+        "customer_unique_id": 0,
+        "order_status": 0,
+        "order_purchase_timestamp": 0,
+        "purchase_date": 0,
+        "in_candidate_window": 0
+      }
+    },
+    {
+      "output_dataset": "fact_orders",
+      "kind": "fact",
+      "purpose": "Order-level sales, payment reconciliation, delivery/logistics, cohort and retention analysis (D-13, D-08)",
+      "grain": "one order",
+      "primary_key": [
+        "order_id"
+      ],
+      "foreign_keys": [
+        "customer_unique_id -> dim_customers.customer_unique_id",
+        "purchase_date -> dim_dates.date"
+      ],
+      "sources": [
+        "clean.orders",
+        "clean.customers",
+        "clean.order_items",
+        "clean.payments",
+        "clean.reviews"
+      ],
+      "path": "data/processed/analytical/fact_orders.parquet",
+      "rows": 99441,
+      "columns": 53,
+      "sha256": "1914da0a688fff88a7f3095afa4d3892ce5e5f2dfae7b260a94f4a616e8a8328",
+      "content_sha256": "39ee456e2c5f6ae734f06459f8cc3690676773c141702bd751ba4fd4aa66d4bb",
+      "schema": {
+        "order_id": "string",
+        "customer_id": "string",
+        "customer_unique_id": "string",
+        "order_status": "category",
+        "order_purchase_timestamp": "datetime64[us]",
+        "order_approved_at": "datetime64[us]",
+        "order_delivered_carrier_date": "datetime64[us]",
+        "order_delivered_customer_date": "datetime64[us]",
+        "order_estimated_delivery_date": "datetime64[us]",
+        "purchase_date": "datetime64[us]",
+        "purchase_year_month": "string",
+        "in_candidate_window": "bool",
+        "customer_order_seq": "int64",
+        "is_first_order": "bool",
+        "customer_zip_code_prefix": "string",
+        "customer_city_key": "string",
+        "customer_state_std": "category",
+        "customer_lat_centroid": "float64",
+        "customer_lng_centroid": "float64",
+        "dq_customer_no_geolocation": "bool",
+        "dq_delivered_missing_approval": "bool",
+        "dq_delivered_missing_carrier_date": "bool",
+        "dq_delivered_missing_delivery_date": "bool",
+        "dq_carrier_before_purchase": "bool",
+        "dq_delivered_before_carrier": "bool",
+        "dq_carrier_before_approval": "bool",
+        "dq_delivered_before_approval": "bool",
+        "dq_status_canceled_with_date": "bool",
+        "dq_same_person_same_second": "bool",
+        "has_items": "bool",
+        "item_count": "int64",
+        "order_line_count": "int64",
+        "distinct_products": "int64",
+        "distinct_sellers": "int64",
+        "items_price_total": "float64",
+        "items_freight_total": "float64",
+        "has_payment": "bool",
+        "payment_rows": "int64",
+        "payment_total": "float64",
+        "payment_types": "string",
+        "has_voucher": "bool",
+        "max_installments": "Int64",
+        "payment_minus_items": "float64",
+        "dq_payment_items_mismatch": "bool",
+        "review_count": "int64",
+        "approval_hours": "float64",
+        "purchase_to_carrier_days": "float64",
+        "approval_to_carrier_days": "float64",
+        "carrier_to_customer_days": "float64",
+        "approval_to_delivery_days": "float64",
+        "purchase_to_delivery_days": "float64",
+        "delivery_vs_estimate_days": "float64",
+        "is_late": "boolean"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "customer_id": 0,
+        "customer_unique_id": 0,
+        "order_status": 0,
+        "order_purchase_timestamp": 0,
+        "order_approved_at": 160,
+        "order_delivered_carrier_date": 1783,
+        "order_delivered_customer_date": 2965,
+        "order_estimated_delivery_date": 0,
+        "purchase_date": 0,
+        "purchase_year_month": 0,
+        "in_candidate_window": 0,
+        "customer_order_seq": 0,
+        "is_first_order": 0,
+        "customer_zip_code_prefix": 0,
+        "customer_city_key": 0,
+        "customer_state_std": 0,
+        "customer_lat_centroid": 279,
+        "customer_lng_centroid": 279,
+        "dq_customer_no_geolocation": 0,
+        "dq_delivered_missing_approval": 0,
+        "dq_delivered_missing_carrier_date": 0,
+        "dq_delivered_missing_delivery_date": 0,
+        "dq_carrier_before_purchase": 0,
+        "dq_delivered_before_carrier": 0,
+        "dq_carrier_before_approval": 0,
+        "dq_delivered_before_approval": 0,
+        "dq_status_canceled_with_date": 0,
+        "dq_same_person_same_second": 0,
+        "has_items": 0,
+        "item_count": 0,
+        "order_line_count": 0,
+        "distinct_products": 0,
+        "distinct_sellers": 0,
+        "items_price_total": 775,
+        "items_freight_total": 775,
+        "has_payment": 0,
+        "payment_rows": 0,
+        "payment_total": 1,
+        "payment_types": 1,
+        "has_voucher": 0,
+        "max_installments": 3,
+        "payment_minus_items": 776,
+        "dq_payment_items_mismatch": 0,
+        "review_count": 0,
+        "approval_hours": 160,
+        "purchase_to_carrier_days": 1949,
+        "approval_to_carrier_days": 3156,
+        "carrier_to_customer_days": 2989,
+        "approval_to_delivery_days": 3040,
+        "purchase_to_delivery_days": 2965,
+        "delivery_vs_estimate_days": 2965,
+        "is_late": 2965
+      }
+    },
+    {
+      "output_dataset": "fact_payments",
+      "kind": "fact",
+      "purpose": "Payment-method, instalment and cash-collected analysis at transaction level",
+      "grain": "one payment transaction",
+      "primary_key": [
+        "order_id",
+        "payment_sequential"
+      ],
+      "foreign_keys": [
+        "order_id -> fact_orders.order_id",
+        "customer_unique_id -> dim_customers.customer_unique_id",
+        "purchase_date -> dim_dates.date"
+      ],
+      "sources": [
+        "clean.payments",
+        "clean.orders",
+        "clean.customers"
+      ],
+      "path": "data/processed/analytical/fact_payments.parquet",
+      "rows": 103886,
+      "columns": 12,
+      "sha256": "f995a28e88e574cf58c1e2787911b1e2e51002f244179f73bafdbdace16b3cc2",
+      "content_sha256": "dc0083b0d3f30ba0c4a3c3d38dddb7905a8e139d50842eb244e813f3380a4609",
+      "schema": {
+        "order_id": "string",
+        "payment_sequential": "Int64",
+        "payment_type": "category",
+        "payment_installments": "Int64",
+        "payment_value": "float64",
+        "dq_payment_zero": "bool",
+        "dq_installments_zero": "bool",
+        "customer_unique_id": "string",
+        "order_status": "category",
+        "order_purchase_timestamp": "datetime64[us]",
+        "purchase_date": "datetime64[us]",
+        "in_candidate_window": "bool"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "payment_sequential": 0,
+        "payment_type": 0,
+        "payment_installments": 0,
+        "payment_value": 0,
+        "dq_payment_zero": 0,
+        "dq_installments_zero": 0,
+        "customer_unique_id": 0,
+        "order_status": 0,
+        "order_purchase_timestamp": 0,
+        "purchase_date": 0,
+        "in_candidate_window": 0
+      }
+    },
+    {
+      "output_dataset": "fact_reviews",
+      "kind": "fact",
+      "purpose": "Customer satisfaction analysis; review-level counts use distinct review_id (D-07, Q-04)",
+      "grain": "one review-order link",
+      "primary_key": [
+        "review_id",
+        "order_id"
+      ],
+      "foreign_keys": [
+        "order_id -> fact_orders.order_id",
+        "customer_unique_id -> dim_customers.customer_unique_id",
+        "purchase_date -> dim_dates.date"
+      ],
+      "sources": [
+        "clean.reviews",
+        "clean.orders",
+        "clean.customers"
+      ],
+      "path": "data/processed/analytical/fact_reviews.parquet",
+      "rows": 99224,
+      "columns": 19,
+      "sha256": "ee73cf1729643c23423282f55ed8e9c521e7d28f02d320509b7e96a5ff44be3d",
+      "content_sha256": "93a3d87663915ddf4ffff7e5be2058dfd52710c4ec99850e04d2340f28ddd378",
+      "schema": {
+        "review_id": "string",
+        "order_id": "string",
+        "review_score": "Int64",
+        "review_comment_title": "string",
+        "review_comment_message": "string",
+        "review_creation_date": "datetime64[us]",
+        "review_answer_timestamp": "datetime64[us]",
+        "has_comment_title": "bool",
+        "has_comment_message": "bool",
+        "dq_review_id_shared": "bool",
+        "dq_review_content_duplicate": "bool",
+        "dq_review_before_purchase": "bool",
+        "dq_review_before_delivery": "bool",
+        "customer_unique_id": "string",
+        "order_status": "category",
+        "order_purchase_timestamp": "datetime64[us]",
+        "purchase_date": "datetime64[us]",
+        "in_candidate_window": "bool",
+        "order_delivered_customer_date": "datetime64[us]"
+      },
+      "missing_values": {
+        "review_id": 0,
+        "order_id": 0,
+        "review_score": 0,
+        "review_comment_title": 87656,
+        "review_comment_message": 58247,
+        "review_creation_date": 0,
+        "review_answer_timestamp": 0,
+        "has_comment_title": 0,
+        "has_comment_message": 0,
+        "dq_review_id_shared": 0,
+        "dq_review_content_duplicate": 0,
+        "dq_review_before_purchase": 0,
+        "dq_review_before_delivery": 0,
+        "customer_unique_id": 0,
+        "order_status": 0,
+        "order_purchase_timestamp": 0,
+        "purchase_date": 0,
+        "in_candidate_window": 0,
+        "order_delivered_customer_date": 2865
+      }
+    },
+    {
+      "output_dataset": "dim_customers",
+      "kind": "dimension",
+      "purpose": "Person-level customer analytics: RFM inputs, cohorts, retention, historical value (D-01). Measures span the full history: do not use them as prediction features; derive time-dependent features from the fact tables with an explicit cut-off date to avoid target leakage",
+      "grain": "one person (customer_unique_id)",
+      "primary_key": [
+        "customer_unique_id"
+      ],
+      "foreign_keys": [],
+      "sources": [
+        "clean.customers",
+        "clean.orders",
+        "clean.order_items",
+        "clean.payments"
+      ],
+      "path": "data/processed/analytical/dim_customers.parquet",
+      "rows": 96096,
+      "columns": 19,
+      "sha256": "e5da767994e5ea2973535e1fe6458f189834ad6465cec36f22d86c00b620903f",
+      "content_sha256": "e1d08ac5edbeecd264f3d83ab538924dd65c05af8a424f7f707a0925eced1247",
+      "schema": {
+        "customer_unique_id": "string",
+        "n_customer_ids": "int64",
+        "n_distinct_zips": "int64",
+        "n_distinct_states": "int64",
+        "first_purchase_ts": "datetime64[us]",
+        "last_purchase_ts": "datetime64[us]",
+        "cohort_month": "string",
+        "n_orders": "int64",
+        "n_items": "int64",
+        "items_price_total": "float64",
+        "items_freight_total": "float64",
+        "payment_total": "float64",
+        "n_orders_delivered": "int64",
+        "n_items_delivered": "int64",
+        "items_price_total_delivered": "float64",
+        "items_freight_total_delivered": "float64",
+        "payment_total_delivered": "float64",
+        "first_delivered_purchase_ts": "datetime64[us]",
+        "last_delivered_purchase_ts": "datetime64[us]"
+      },
+      "missing_values": {
+        "customer_unique_id": 0,
+        "n_customer_ids": 0,
+        "n_distinct_zips": 0,
+        "n_distinct_states": 0,
+        "first_purchase_ts": 0,
+        "last_purchase_ts": 0,
+        "cohort_month": 0,
+        "n_orders": 0,
+        "n_items": 0,
+        "items_price_total": 676,
+        "items_freight_total": 676,
+        "payment_total": 1,
+        "n_orders_delivered": 0,
+        "n_items_delivered": 0,
+        "items_price_total_delivered": 2738,
+        "items_freight_total_delivered": 2738,
+        "payment_total_delivered": 2739,
+        "first_delivered_purchase_ts": 2738,
+        "last_delivered_purchase_ts": 2738
+      }
+    },
+    {
+      "output_dataset": "dim_products",
+      "kind": "dimension",
+      "purpose": "Product attributes, category labels (category_map) and quality flags",
+      "grain": "one product",
+      "primary_key": [
+        "product_id"
+      ],
+      "foreign_keys": [],
+      "sources": [
+        "clean.products"
+      ],
+      "path": "data/processed/analytical/dim_products.parquet",
+      "rows": 32951,
+      "columns": 26,
+      "sha256": "54264da7c7a6206c94fa6531e383afc5762f72dd25198f5a392b1bd2d7b465c8",
+      "content_sha256": "cd37eaffe8ba79d6f3e6f64cd4ff3cc2745b883b9df352e43c58b37d3504781d",
+      "schema": {
+        "product_id": "string",
+        "product_category_name": "string",
+        "category_en_clean": "string",
+        "category_reporting": "string",
+        "product_name_length": "Int64",
+        "product_description_length": "Int64",
+        "product_photos_qty": "Int64",
+        "product_weight_g": "Int64",
+        "weight_g_valid": "Int64",
+        "product_length_cm": "Int64",
+        "product_height_cm": "Int64",
+        "product_width_cm": "Int64",
+        "dq_missing_category": "bool",
+        "dq_missing_name_length": "bool",
+        "dq_missing_description_length": "bool",
+        "dq_missing_photos_qty": "bool",
+        "dq_missing_weight_g": "bool",
+        "dq_missing_length_cm": "bool",
+        "dq_missing_height_cm": "bool",
+        "dq_missing_width_cm": "bool",
+        "dq_listing_metadata_missing": "bool",
+        "dq_physical_attributes_missing": "bool",
+        "dq_all_attributes_missing": "bool",
+        "dq_weight_zero": "bool",
+        "dq_density_suspicious": "bool",
+        "dq_dims_16x2x11": "bool"
+      },
+      "missing_values": {
+        "product_id": 0,
+        "product_category_name": 610,
+        "category_en_clean": 610,
+        "category_reporting": 0,
+        "product_name_length": 610,
+        "product_description_length": 610,
+        "product_photos_qty": 610,
+        "product_weight_g": 2,
+        "weight_g_valid": 6,
+        "product_length_cm": 2,
+        "product_height_cm": 2,
+        "product_width_cm": 2,
+        "dq_missing_category": 0,
+        "dq_missing_name_length": 0,
+        "dq_missing_description_length": 0,
+        "dq_missing_photos_qty": 0,
+        "dq_missing_weight_g": 0,
+        "dq_missing_length_cm": 0,
+        "dq_missing_height_cm": 0,
+        "dq_missing_width_cm": 0,
+        "dq_listing_metadata_missing": 0,
+        "dq_physical_attributes_missing": 0,
+        "dq_all_attributes_missing": 0,
+        "dq_weight_zero": 0,
+        "dq_density_suspicious": 0,
+        "dq_dims_16x2x11": 0
+      }
+    },
+    {
+      "output_dataset": "dim_sellers",
+      "kind": "dimension",
+      "purpose": "Seller location and quality flags",
+      "grain": "one seller",
+      "primary_key": [
+        "seller_id"
+      ],
+      "foreign_keys": [],
+      "sources": [
+        "clean.sellers"
+      ],
+      "path": "data/processed/analytical/dim_sellers.parquet",
+      "rows": 3095,
+      "columns": 9,
+      "sha256": "3d8cc6a8209b3b890a7a63049ce186bfe0ce950dcc391f86f21231354ca73623",
+      "content_sha256": "9a7b253b21dddb073600434518478025af902a49b2b1b1ad150afcdd5ab5b70e",
+      "schema": {
+        "seller_id": "string",
+        "seller_zip_code_prefix": "string",
+        "seller_city": "string",
+        "city_key": "string",
+        "seller_state_std": "category",
+        "dq_city_malformed": "bool",
+        "lat_centroid": "float64",
+        "lng_centroid": "float64",
+        "dq_no_geolocation": "bool"
+      },
+      "missing_values": {
+        "seller_id": 0,
+        "seller_zip_code_prefix": 0,
+        "seller_city": 0,
+        "city_key": 0,
+        "seller_state_std": 0,
+        "dq_city_malformed": 0,
+        "lat_centroid": 7,
+        "lng_centroid": 7,
+        "dq_no_geolocation": 0
+      }
+    },
+    {
+      "output_dataset": "dim_dates",
+      "kind": "dimension",
+      "purpose": "Calendar for time series, seasonality and forecasting",
+      "grain": "one calendar day from the first to the last event date",
+      "primary_key": [
+        "date"
+      ],
+      "foreign_keys": [],
+      "sources": [
+        "clean.orders",
+        "clean.order_items",
+        "clean.reviews"
+      ],
+      "path": "data/processed/analytical/dim_dates.parquet",
+      "rows": 1314,
+      "columns": 11,
+      "sha256": "e31022f1abd10989fb3ed50a6cfd59d43a99bfda4defe88f96c36df3810ed911",
+      "content_sha256": "fd716c02e4aa533992859f98a27ec5b4550de4b6cdeda8c84eff4cf0c172d845",
+      "schema": {
+        "date": "datetime64[us]",
+        "year": "int64",
+        "quarter": "int64",
+        "month": "int64",
+        "year_month": "string",
+        "iso_year": "int64",
+        "iso_week": "int64",
+        "day_of_week": "int64",
+        "day_name": "string",
+        "is_weekend": "bool",
+        "in_candidate_window": "bool"
+      },
+      "missing_values": {
+        "date": 0,
+        "year": 0,
+        "quarter": 0,
+        "month": 0,
+        "year_month": 0,
+        "iso_year": 0,
+        "iso_week": 0,
+        "day_of_week": 0,
+        "day_name": 0,
+        "is_weekend": 0,
+        "in_candidate_window": 0
+      }
+    }
+  ],
+  "joins": [
+    {
+      "join": "orders_x_customers.context",
+      "validate": "one_to_one",
+      "how": "left",
+      "on": [
+        "customer_id"
+      ],
+      "left_rows": 99441,
+      "right_rows": 99441,
+      "result_rows": 99441
+    },
+    {
+      "join": "order_lines_x_order_context",
+      "validate": "many_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 102425,
+      "right_rows": 99441,
+      "result_rows": 102425
+    },
+    {
+      "join": "orders_x_customers",
+      "validate": "one_to_one",
+      "how": "left",
+      "on": [
+        "customer_id"
+      ],
+      "left_rows": 99441,
+      "right_rows": 99441,
+      "result_rows": 99441
+    },
+    {
+      "join": "orders_x_item_summary",
+      "validate": "one_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 99441,
+      "right_rows": 98666,
+      "result_rows": 99441
+    },
+    {
+      "join": "orders_x_payment_summary",
+      "validate": "one_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 99441,
+      "right_rows": 99440,
+      "result_rows": 99441
+    },
+    {
+      "join": "orders_x_review_summary",
+      "validate": "one_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 99441,
+      "right_rows": 98673,
+      "result_rows": 99441
+    },
+    {
+      "join": "payments_x_order_context",
+      "validate": "many_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 103886,
+      "right_rows": 99441,
+      "result_rows": 103886
+    },
+    {
+      "join": "reviews_x_order_context",
+      "validate": "many_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 99224,
+      "right_rows": 99441,
+      "result_rows": 99224
+    },
+    {
+      "join": "reviews_x_delivery_date",
+      "validate": "many_to_one",
+      "how": "left",
+      "on": [
+        "order_id"
+      ],
+      "left_rows": 99224,
+      "right_rows": 99441,
+      "result_rows": 99224
+    }
+  ],
+  "steps": [
+    {
+      "step": "order lines at the six-attribute grain (quantity, line totals, order_item_ids)",
+      "decision": "D-15",
+      "inputs": {
+        "order_items": 112650,
+        "orders": 99441,
+        "customers": 99441
+      },
+      "output": "fact_order_lines",
+      "rows_out": 102425
+    },
+    {
+      "step": "orders + independently aggregated item, payment and review summaries (one_to_one); mismatch flag; durations",
+      "decision": "D-13 / D-08 / Q-04 / Q-11",
+      "inputs": {
+        "orders": 99441,
+        "customers": 99441,
+        "order_items": 112650,
+        "payments": 103886,
+        "reviews": 99224
+      },
+      "output": "fact_orders",
+      "rows_out": 99441
+    },
+    {
+      "step": "payment transactions + order context (many_to_one)",
+      "decision": "D-13",
+      "inputs": {
+        "payments": 103886,
+        "orders": 99441
+      },
+      "output": "fact_payments",
+      "rows_out": 103886
+    },
+    {
+      "step": "review-order links + order context (many_to_one)",
+      "decision": "D-07 / Q-04",
+      "inputs": {
+        "reviews": 99224,
+        "orders": 99441
+      },
+      "output": "fact_reviews",
+      "rows_out": 99224
+    },
+    {
+      "step": "persons from fact_orders: all-order and delivered-order measures",
+      "decision": "D-01",
+      "inputs": {
+        "customers": 99441,
+        "orders": 99441
+      },
+      "output": "dim_customers",
+      "rows_out": 96096
+    },
+    {
+      "step": "product attributes, category labels and flags",
+      "decision": "D-12",
+      "inputs": {
+        "products": 32951
+      },
+      "output": "dim_products",
+      "rows_out": 32951
+    },
+    {
+      "step": "seller attributes and flags",
+      "decision": "D-11 / D-10",
+      "inputs": {
+        "sellers": 3095
+      },
+      "output": "dim_sellers",
+      "rows_out": 3095
+    },
+    {
+      "step": "calendar from the first to the last event date",
+      "decision": "13 step 13",
+      "inputs": {
+        "orders": 99441,
+        "order_items": 112650,
+        "reviews": 99224
+      },
+      "output": "dim_dates",
+      "rows_out": 1314
+    }
+  ],
+  "checks": [
+    {
+      "check_id": "V01",
+      "check_class": "blocking",
+      "description": "raw files unchanged from run start to validation (SHA-256); baseline verified",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "C01.customers",
+      "check_class": "blocking",
+      "description": "clean customers: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C01.orders",
+      "check_class": "blocking",
+      "description": "clean orders: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C01.order_items",
+      "check_class": "blocking",
+      "description": "clean order_items: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C01.payments",
+      "check_class": "blocking",
+      "description": "clean payments: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C01.reviews",
+      "check_class": "blocking",
+      "description": "clean reviews: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C01.products",
+      "check_class": "blocking",
+      "description": "clean products: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C01.sellers",
+      "check_class": "blocking",
+      "description": "clean sellers: lineage present and its raw SHA-256 equals the current raw file",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "C02",
+      "check_class": "blocking",
+      "description": "all clean inputs come from one clean run",
+      "expected": 1,
+      "observed": 1,
+      "passed": true
+    },
+    {
+      "check_id": "V03.fact_order_lines",
+      "check_class": "blocking",
+      "description": "fact_order_lines: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.fact_order_lines",
+      "check_class": "blocking",
+      "description": "fact_order_lines: grain key ('order_line_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_order_lines.order_id",
+      "check_class": "blocking",
+      "description": "fact_order_lines.order_id -> fact_orders.order_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_order_lines.product_id",
+      "check_class": "blocking",
+      "description": "fact_order_lines.product_id -> dim_products.product_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_order_lines.seller_id",
+      "check_class": "blocking",
+      "description": "fact_order_lines.seller_id -> dim_sellers.seller_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_order_lines.customer_unique_id",
+      "check_class": "blocking",
+      "description": "fact_order_lines.customer_unique_id -> dim_customers.customer_unique_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_order_lines.purchase_date",
+      "check_class": "blocking",
+      "description": "fact_order_lines.purchase_date -> dim_dates.date: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "F01.fact_order_lines",
+      "check_class": "blocking",
+      "description": "fact_order_lines: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.fact_orders",
+      "check_class": "blocking",
+      "description": "fact_orders: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.fact_orders",
+      "check_class": "blocking",
+      "description": "fact_orders: grain key ('order_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_orders.customer_unique_id",
+      "check_class": "blocking",
+      "description": "fact_orders.customer_unique_id -> dim_customers.customer_unique_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_orders.purchase_date",
+      "check_class": "blocking",
+      "description": "fact_orders.purchase_date -> dim_dates.date: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "F01.fact_orders",
+      "check_class": "blocking",
+      "description": "fact_orders: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.fact_payments",
+      "check_class": "blocking",
+      "description": "fact_payments: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.fact_payments",
+      "check_class": "blocking",
+      "description": "fact_payments: grain key ('order_id', 'payment_sequential') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_payments.order_id",
+      "check_class": "blocking",
+      "description": "fact_payments.order_id -> fact_orders.order_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_payments.customer_unique_id",
+      "check_class": "blocking",
+      "description": "fact_payments.customer_unique_id -> dim_customers.customer_unique_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_payments.purchase_date",
+      "check_class": "blocking",
+      "description": "fact_payments.purchase_date -> dim_dates.date: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "F01.fact_payments",
+      "check_class": "blocking",
+      "description": "fact_payments: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.fact_reviews",
+      "check_class": "blocking",
+      "description": "fact_reviews: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.fact_reviews",
+      "check_class": "blocking",
+      "description": "fact_reviews: grain key ('review_id', 'order_id') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_reviews.order_id",
+      "check_class": "blocking",
+      "description": "fact_reviews.order_id -> fact_orders.order_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_reviews.customer_unique_id",
+      "check_class": "blocking",
+      "description": "fact_reviews.customer_unique_id -> dim_customers.customer_unique_id: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "FK.fact_reviews.purchase_date",
+      "check_class": "blocking",
+      "description": "fact_reviews.purchase_date -> dim_dates.date: no orphans (nulls count as orphans)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "F01.fact_reviews",
+      "check_class": "blocking",
+      "description": "fact_reviews: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.dim_customers",
+      "check_class": "blocking",
+      "description": "dim_customers: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.dim_customers",
+      "check_class": "blocking",
+      "description": "dim_customers: grain key ('customer_unique_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "F01.dim_customers",
+      "check_class": "blocking",
+      "description": "dim_customers: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.dim_products",
+      "check_class": "blocking",
+      "description": "dim_products: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.dim_products",
+      "check_class": "blocking",
+      "description": "dim_products: grain key ('product_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "F01.dim_products",
+      "check_class": "blocking",
+      "description": "dim_products: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.dim_sellers",
+      "check_class": "blocking",
+      "description": "dim_sellers: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.dim_sellers",
+      "check_class": "blocking",
+      "description": "dim_sellers: grain key ('seller_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "F01.dim_sellers",
+      "check_class": "blocking",
+      "description": "dim_sellers: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V03.dim_dates",
+      "check_class": "blocking",
+      "description": "dim_dates: columns and dtypes match the declared schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V10.dim_dates",
+      "check_class": "blocking",
+      "description": "dim_dates: grain key ('date',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "F01.dim_dates",
+      "check_class": "blocking",
+      "description": "dim_dates: boolean flag columns have no missing values",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V11.orders_x_customers.context",
+      "check_class": "blocking",
+      "description": "join orders_x_customers.context (validate=one_to_one, how=left): row count preserved",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V11.order_lines_x_order_context",
+      "check_class": "blocking",
+      "description": "join order_lines_x_order_context (validate=many_to_one, how=left): row count preserved",
+      "expected": 102425,
+      "observed": 102425,
+      "passed": true
+    },
+    {
+      "check_id": "V11.orders_x_customers",
+      "check_class": "blocking",
+      "description": "join orders_x_customers (validate=one_to_one, how=left): row count preserved",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V11.orders_x_item_summary",
+      "check_class": "blocking",
+      "description": "join orders_x_item_summary (validate=one_to_one, how=left): row count preserved",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V11.orders_x_payment_summary",
+      "check_class": "blocking",
+      "description": "join orders_x_payment_summary (validate=one_to_one, how=left): row count preserved",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V11.orders_x_review_summary",
+      "check_class": "blocking",
+      "description": "join orders_x_review_summary (validate=one_to_one, how=left): row count preserved",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V11.payments_x_order_context",
+      "check_class": "blocking",
+      "description": "join payments_x_order_context (validate=many_to_one, how=left): row count preserved",
+      "expected": 103886,
+      "observed": 103886,
+      "passed": true
+    },
+    {
+      "check_id": "V11.reviews_x_order_context",
+      "check_class": "blocking",
+      "description": "join reviews_x_order_context (validate=many_to_one, how=left): row count preserved",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "V11.reviews_x_delivery_date",
+      "check_class": "blocking",
+      "description": "join reviews_x_delivery_date (validate=many_to_one, how=left): row count preserved",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.fact_orders",
+      "check_class": "blocking",
+      "description": "fact_orders: rows = clean orders rows",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "A14.fact_orders",
+      "check_class": "blocking",
+      "description": "fact_orders: every column carried from clean orders is identical (values, order)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.fact_payments",
+      "check_class": "blocking",
+      "description": "fact_payments: rows = clean payments rows",
+      "expected": 103886,
+      "observed": 103886,
+      "passed": true
+    },
+    {
+      "check_id": "A14.fact_payments",
+      "check_class": "blocking",
+      "description": "fact_payments: every column carried from clean payments is identical (values, order)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.fact_reviews",
+      "check_class": "blocking",
+      "description": "fact_reviews: rows = clean reviews rows",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "A14.fact_reviews",
+      "check_class": "blocking",
+      "description": "fact_reviews: every column carried from clean reviews is identical (values, order)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.dim_products",
+      "check_class": "blocking",
+      "description": "dim_products: rows = clean products rows",
+      "expected": 32951,
+      "observed": 32951,
+      "passed": true
+    },
+    {
+      "check_id": "A14.dim_products",
+      "check_class": "blocking",
+      "description": "dim_products: every column carried from clean products is identical (values, order)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.dim_sellers",
+      "check_class": "blocking",
+      "description": "dim_sellers: rows = clean sellers rows",
+      "expected": 3095,
+      "observed": 3095,
+      "passed": true
+    },
+    {
+      "check_id": "A14.dim_sellers",
+      "check_class": "blocking",
+      "description": "dim_sellers: every column carried from clean sellers is identical (values, order)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.dim_customers",
+      "check_class": "blocking",
+      "description": "dim_customers: one row per distinct customer_unique_id",
+      "expected": 96096,
+      "observed": 96096,
+      "passed": true
+    },
+    {
+      "check_id": "ROWS.dim_dates",
+      "check_class": "blocking",
+      "description": "dim_dates: contiguous days, no gaps",
+      "expected": 1314,
+      "observed": 1314,
+      "passed": true
+    },
+    {
+      "check_id": "V13.quantity_sum",
+      "check_class": "blocking",
+      "description": "sum(quantity) = order_items rows",
+      "expected": 112650,
+      "observed": 112650,
+      "passed": true
+    },
+    {
+      "check_id": "V13.each_item_once",
+      "check_class": "blocking",
+      "description": "every (order_id, order_item_id) is in exactly one line (duplicates, unmatched either side)",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V13.lossless_attributes",
+      "check_class": "blocking",
+      "description": "every item's six attributes equal those of its line (nothing with different freight/deadline merged)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V13.line_totals",
+      "check_class": "blocking",
+      "description": "per line: line_price_total and freight_total = sums of their items (cents)",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V13.ids_match_quantity",
+      "check_class": "blocking",
+      "description": "len(order_item_ids) = quantity on every line",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V09.fact_order_lines.line_price_total",
+      "check_class": "blocking",
+      "description": "fact_order_lines.line_price_total: total = clean total (same run, cents)",
+      "expected": 13591643.7,
+      "observed": 13591643.7,
+      "passed": true
+    },
+    {
+      "check_id": "V09.fact_order_lines.freight_total",
+      "check_class": "blocking",
+      "description": "fact_order_lines.freight_total: total = clean total (same run, cents)",
+      "expected": 2251909.54,
+      "observed": 2251909.54,
+      "passed": true
+    },
+    {
+      "check_id": "V09.fact_orders.items_price_total",
+      "check_class": "blocking",
+      "description": "fact_orders.items_price_total: total = clean total (same run, cents)",
+      "expected": 13591643.7,
+      "observed": 13591643.7,
+      "passed": true
+    },
+    {
+      "check_id": "V09.fact_orders.items_freight_total",
+      "check_class": "blocking",
+      "description": "fact_orders.items_freight_total: total = clean total (same run, cents)",
+      "expected": 2251909.54,
+      "observed": 2251909.54,
+      "passed": true
+    },
+    {
+      "check_id": "V09.fact_orders.payment_total",
+      "check_class": "blocking",
+      "description": "fact_orders.payment_total: total = clean total (same run, cents)",
+      "expected": 16008872.12,
+      "observed": 16008872.12,
+      "passed": true
+    },
+    {
+      "check_id": "V09.fact_payments.payment_value",
+      "check_class": "blocking",
+      "description": "fact_payments.payment_value: total = clean total (same run, cents)",
+      "expected": 16008872.12,
+      "observed": 16008872.12,
+      "passed": true
+    },
+    {
+      "check_id": "V09.dim_customers.items_price_total",
+      "check_class": "blocking",
+      "description": "dim_customers.items_price_total: total = clean total (same run, cents)",
+      "expected": 13591643.7,
+      "observed": 13591643.7,
+      "passed": true
+    },
+    {
+      "check_id": "V09.dim_customers.items_freight_total",
+      "check_class": "blocking",
+      "description": "dim_customers.items_freight_total: total = clean total (same run, cents)",
+      "expected": 2251909.54,
+      "observed": 2251909.54,
+      "passed": true
+    },
+    {
+      "check_id": "V09.dim_customers.payment_total",
+      "check_class": "blocking",
+      "description": "dim_customers.payment_total: total = clean total (same run, cents)",
+      "expected": 16008872.12,
+      "observed": 16008872.12,
+      "passed": true
+    },
+    {
+      "check_id": "V09.dim_customers.delivered_variant",
+      "check_class": "blocking",
+      "description": "dim_customers delivered-variant totals = fact_orders totals over delivered orders",
+      "expected": [
+        13221498.11,
+        2198275.64,
+        15422461.77
+      ],
+      "observed": [
+        13221498.11,
+        2198275.64,
+        15422461.77
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "S.item_count",
+      "check_class": "blocking",
+      "description": "fact_orders.item_count / order_line_count = quantity sum / line count per order",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "S.row_counts",
+      "check_class": "blocking",
+      "description": "sums of item_count / payment_rows / review_count = clean rows",
+      "expected": [
+        112650,
+        103886,
+        99224
+      ],
+      "observed": [
+        112650,
+        103886,
+        99224
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "S.payment_minus_items_defined",
+      "check_class": "blocking",
+      "description": "payment_minus_items present exactly for orders with items and payments",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "S.mismatch_flag",
+      "check_class": "blocking",
+      "description": "dq_payment_items_mismatch = |payment_minus_items| > tolerance",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "S.duration_flags",
+      "check_class": "blocking",
+      "description": "each guarded duration is missing wherever its chronology flag is True",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "S.duration_non_negative",
+      "check_class": "blocking",
+      "description": "guarded durations are never negative where defined",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "S.is_late_defined",
+      "check_class": "blocking",
+      "description": "is_late is missing exactly where the delivery date is missing",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "S.customer_order_seq",
+      "check_class": "blocking",
+      "description": "one first order per person; max sequence = n_orders",
+      "expected": [
+        96096,
+        true
+      ],
+      "observed": [
+        96096,
+        true
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "S.dim_customers_counts",
+      "check_class": "blocking",
+      "description": "dim_customers: sum(n_orders) = orders, sum(n_items) = order_items rows",
+      "expected": [
+        99441,
+        112650
+      ],
+      "observed": [
+        99441,
+        112650
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.order_lines",
+      "check_class": "regression",
+      "description": "order_lines (strategy 11.3 / NB02-NB03)",
+      "expected": 102425,
+      "observed": 102425,
+      "passed": true
+    },
+    {
+      "check_id": "R.orders",
+      "check_class": "regression",
+      "description": "orders (strategy 11.3 / NB02-NB03)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "R.persons",
+      "check_class": "regression",
+      "description": "persons (strategy 11.3 / NB02-NB03)",
+      "expected": 96096,
+      "observed": 96096,
+      "passed": true
+    },
+    {
+      "check_id": "R.persons_with_several_orders",
+      "check_class": "regression",
+      "description": "persons_with_several_orders (strategy 11.3 / NB02-NB03)",
+      "expected": 2997,
+      "observed": 2997,
+      "passed": true
+    },
+    {
+      "check_id": "R.dq_payment_items_mismatch",
+      "check_class": "regression",
+      "description": "dq_payment_items_mismatch (strategy 11.3 / NB02-NB03)",
+      "expected": 303,
+      "observed": 303,
+      "passed": true
+    },
+    {
+      "check_id": "R.orders_reconciled",
+      "check_class": "regression",
+      "description": "orders_reconciled (strategy 11.3 / NB02-NB03)",
+      "expected": 98665,
+      "observed": 98665,
+      "passed": true
+    },
+    {
+      "check_id": "R.mismatch_overpaid",
+      "check_class": "regression",
+      "description": "mismatch_overpaid (strategy 11.3 / NB02-NB03)",
+      "expected": 264,
+      "observed": 264,
+      "passed": true
+    },
+    {
+      "check_id": "R.mismatch_underpaid",
+      "check_class": "regression",
+      "description": "mismatch_underpaid (strategy 11.3 / NB02-NB03)",
+      "expected": 39,
+      "observed": 39,
+      "passed": true
+    },
+    {
+      "check_id": "R.mismatch_gt_1",
+      "check_class": "regression",
+      "description": "mismatch_gt_1 (strategy 11.3 / NB02-NB03)",
+      "expected": 249,
+      "observed": 249,
+      "passed": true
+    },
+    {
+      "check_id": "R.orders_without_items",
+      "check_class": "regression",
+      "description": "orders_without_items (strategy 11.3 / NB02-NB03)",
+      "expected": 775,
+      "observed": 775,
+      "passed": true
+    },
+    {
+      "check_id": "R.orders_without_payment",
+      "check_class": "regression",
+      "description": "orders_without_payment (strategy 11.3 / NB02-NB03)",
+      "expected": 1,
+      "observed": 1,
+      "passed": true
+    },
+    {
+      "check_id": "R.orders_with_several_reviews",
+      "check_class": "regression",
+      "description": "orders_with_several_reviews (strategy 11.3 / NB02-NB03)",
+      "expected": 547,
+      "observed": 547,
+      "passed": true
+    },
+    {
+      "check_id": "R.late_deliveries",
+      "check_class": "regression",
+      "description": "late_deliveries (strategy 11.3 / NB02-NB03)",
+      "expected": 6535,
+      "observed": 6535,
+      "passed": true
+    },
+    {
+      "check_id": "R.delivery_over_60_days",
+      "check_class": "regression",
+      "description": "delivery_over_60_days (strategy 11.3 / NB02-NB03)",
+      "expected": 306,
+      "observed": 306,
+      "passed": true
+    },
+    {
+      "check_id": "R.max_quantity",
+      "check_class": "regression",
+      "description": "max quantity per line <= 20 (D-15)",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "R.mismatch_range",
+      "check_class": "regression",
+      "description": "min / max payment_minus_items among mismatched orders (NB03 6.2)",
+      "expected": [
+        -51.62,
+        182.81
+      ],
+      "observed": [
+        -51.62,
+        182.81
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.orders_without_items_by_status",
+      "check_class": "regression",
+      "description": "status of orders without items (Q-16)",
+      "expected": {
+        "unavailable": 603,
+        "canceled": 164,
+        "created": 5,
+        "invoiced": 2,
+        "shipped": 1
+      },
+      "observed": {
+        "unavailable": 603,
+        "canceled": 164,
+        "created": 5,
+        "invoiced": 2,
+        "shipped": 1
+      },
+      "passed": true
+    },
+    {
+      "check_id": "R.negative_unguarded_durations",
+      "check_class": "regression",
+      "description": "approval before purchase / delivery before purchase (NB03 5.2: 0 / 0)",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.distinct_review_id",
+      "check_class": "regression",
+      "description": "distinct review_id in fact_reviews (NB02 5.1)",
+      "expected": 98410,
+      "observed": 98410,
+      "passed": true
+    },
+    {
+      "check_id": "W01",
+      "check_class": "warning",
+      "description": "(order_id, product_id, seller_id, price) groups with >1 freight_value or shipping_limit_date (rejected coarser grain, D-15)",
+      "expected": null,
+      "observed": 0,
+      "passed": null
+    },
+    {
+      "check_id": "W04",
+      "check_class": "warning",
+      "description": "orders / sellers that receive a centroid via zip_lookup",
+      "expected": null,
+      "observed": {
+        "orders_with_customer_centroid": 99162,
+        "orders_share_pct": 99.719,
+        "sellers_with_centroid": 3088,
+        "sellers_share_pct": 99.774
+      },
+      "passed": null
+    },
+    {
+      "check_id": "W05",
+      "check_class": "warning",
+      "description": "fact rows outside the candidate window 2017-01..2018-08 (flagged, not removed; Q-11)",
+      "expected": null,
+      "observed": {
+        "fact_order_lines": 333,
+        "fact_orders": 349,
+        "fact_payments": 366,
+        "fact_reviews": 345
+      },
+      "passed": null
+    },
+    {
+      "check_id": "W.lines_with_quantity_gt_1",
+      "check_class": "warning",
+      "description": "order lines with quantity > 1",
+      "expected": null,
+      "observed": 7088,
+      "passed": null
+    },
+    {
+      "check_id": "P01.fact_order_lines",
+      "check_class": "blocking",
+      "description": "fact_order_lines: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.fact_orders",
+      "check_class": "blocking",
+      "description": "fact_orders: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.fact_payments",
+      "check_class": "blocking",
+      "description": "fact_payments: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.fact_reviews",
+      "check_class": "blocking",
+      "description": "fact_reviews: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.dim_customers",
+      "check_class": "blocking",
+      "description": "dim_customers: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.dim_products",
+      "check_class": "blocking",
+      "description": "dim_products: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.dim_sellers",
+      "check_class": "blocking",
+      "description": "dim_sellers: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.dim_dates",
+      "check_class": "blocking",
+      "description": "dim_dates: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "C03",
+      "check_class": "blocking",
+      "description": "clean input files unchanged during the run (SHA-256)",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "V01.end",
+      "check_class": "blocking",
+      "description": "raw files unchanged at the end of the run (SHA-256)",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    }
+  ]
+}
