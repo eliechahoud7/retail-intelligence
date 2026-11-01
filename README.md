@@ -11,13 +11,15 @@ retail-intelligence/
 │   ├── staging/        # Task 4.2 — typed Parquet copies + derived structures (not versioned)
 │   └── processed/
 │       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
-│       └── _manifest/  # one JSON run manifest per clean run (not versioned)
+│       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
+│       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
 ├── notebooks/          # 01 inventory · 02 relationships · 03 data quality
-├── reports/            # data_preparation_strategy.md, ingestion / staging / clean reports
+├── reports/            # data_preparation_strategy.md, ingestion / staging / clean / analytical reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
 │   ├── staging/        # Task 4.2 — staging layer (Parquet)
-│   └── clean/          # Task 4.3 — clean layer (Parquet)
+│   ├── clean/          # Task 4.3 — clean layer (Parquet)
+│   └── analytical/     # Task 4.4 — analytical layer (Parquet star schema)
 ├── tests/              # automated tests (unittest)
 ├── dashboards/
 ├── models/
@@ -207,6 +209,79 @@ These are deferred to the analytical layer by the strategy:
   - the output registry: path, grain, rows, schema, file SHA-256, and a run-independent content SHA-256 that is identical across repeated runs.
 - `reports/clean/clean_report.md` and `clean_report.json` list every output, its added columns, flag counts, schema and missing values, and every check result.
 
+## Analytical layer (Task 4.4)
+
+The analytical layer reads the **clean Parquet outputs** and builds a star schema for sales, customer, product, seller, payment, delivery and review analysis, and for later modelling.
+
+Every one-to-many table is aggregated to its target grain **before** it is joined. Every join is a left join validated as `one_to_one` or `many_to_one`, and its row counts are recorded in the report (strategy P5, D-13). Order items and payments are never joined at row level, so sales, freight and payment totals cannot inflate.
+
+### Run
+
+```powershell
+.venv\Scripts\python.exe -m src.ingestion        # optional inspection
+.venv\Scripts\python.exe -m src.staging
+.venv\Scripts\python.exe -m src.clean
+.venv\Scripts\python.exe -m src.analytical
+```
+
+Options mirror the clean layer: `--clean-dir` (default `data/processed/clean`), `--out-dir` (default `data/processed/analytical`), `--manifest-dir`, `--report-dir` (default `reports/analytical`), `--raw-dir` and `--skip-baseline-check`.
+
+The run is refused before writing in any of these cases:
+- a clean output is missing;
+- clean was built from raw files that differ from the current ones;
+- any blocking or regression check fails.
+
+### Tables (`data/processed/analytical/`)
+
+| Table | Grain / primary key | Rows | Purpose and main measures |
+|---|---|---:|---|
+| `fact_order_lines` | one D-15 line: items identical in `(order_id, product_id, seller_id, price, freight_value, shipping_limit_date)`; PK `order_line_id` = `order_id:first order_item_id` | 102,425 | Product, category, seller and demand analysis: `quantity`, `unit_price`, `freight_value_per_row`, `line_price_total`, `freight_total`. `order_item_ids` lists the source items for traceability |
+| `fact_orders` | `order_id` | 99,441 | Item summary (`item_count`, `items_price_total`, …) and payment summary (`payment_total`, `payment_rows`, `payment_types`, `has_voucher`, `max_installments`), each aggregated on its own and joined one-to-one. Also: `payment_minus_items` with `dq_payment_items_mismatch`; delivery durations and `is_late`; `customer_order_seq`; customer location at order time; `review_count` |
+| `fact_payments` | `(order_id, payment_sequential)` | 103,886 | Payment method and instalment analysis |
+| `fact_reviews` | `(review_id, order_id)` | 99,224 | Satisfaction analysis. Count reviews with distinct `review_id` |
+| `dim_customers` | `customer_unique_id` (person) | 96,096 | Cohort month, first/last purchase, order and item counts, item-based and payment-based totals. Each measure comes in two variants: all orders, and `delivered` orders |
+| `dim_products` | `product_id` | 32,951 | Attributes, category labels, quality flags |
+| `dim_sellers` | `seller_id` | 3,095 | Location, centroid, quality flags |
+| `dim_dates` | calendar day | 1,314 | Calendar attributes, `in_candidate_window` |
+
+Grain, keys, foreign keys, sources and the explicit schema of every table are declared in `src/analytical/schema.py` (`TABLES`). They are repeated in the Parquet lineage, the run manifest and the report.
+
+### Rules applied (open questions use their conservative defaults)
+
+- **Q-03 revenue:**
+  - item-based measures (`items_price_total`, `line_price_total`) and payment-based measures (`payment_total`) are separate, labelled columns;
+  - 303 orders do not reconcile (`dq_payment_items_mismatch`, |rounded difference| > 0.01).
+- **Q-16:**
+  - the 775 orders without items and 1 order without a payment are kept;
+  - their counts are 0, and their totals and `payment_minus_items` are missing rather than 0.
+- **Q-11:** the candidate window 2017-01 to 2018-08 is a flag (`in_candidate_window`). No rows are removed, and W05 reports how many fall outside.
+- **Q-04:** there is no order-level review score; `fact_orders` carries `review_count` only.
+- **D-08 item 3:** each delivery duration is missing where an input is missing or its own chronology flag is True. `delivery_vs_estimate_days` and `is_late` are computed at day level.
+- **D-16:** `max_installments` ignores zero-instalment rows; payment totals include them.
+- **Customer location** varies across a person's orders, so it stays in `fact_orders`. `dim_customers` has no chosen address.
+- **Not built:**
+  - a churn target, because there is no defensible definition;
+  - product or seller performance tables, because each is one group-by on `fact_order_lines` and their eligibility rules are open.
+- **Leakage:** `dim_customers` spans the full history. Model features must be derived from the fact tables with an explicit cut-off date.
+
+### Validation, lineage and reports
+
+- **Blocking checks:**
+  - raw and clean inputs unchanged; clean lineage matches the current raw files;
+  - schemas; grain-key uniqueness (V10); foreign keys from facts to dimensions;
+  - join cardinality and row counts (V11);
+  - money totals of every fact and of `dim_customers` equal the clean sums (V09);
+  - lossless line aggregation: each item in exactly one line, identical attributes, line totals equal item sums (V13);
+  - summary consistency; duration guards; Parquet read-back.
+- **Regression checks:**
+  - 102,425 lines, 99,441 orders, 96,096 persons;
+  - 303 mismatches (264 overpaid / 39 underpaid, 249 by more than 1.00);
+  - 775 orders without items, 1 without a payment;
+  - 547 orders with more than one review;
+  - 6,535 late deliveries, 306 deliveries over 60 days.
+- **Warnings:** W01, W04, W05.
+- **Lineage:** `data/processed/_manifest/<run_id>.json` and `reports/analytical/analytical_report.{json,md}` follow the clean-layer conventions. They also record every join and the decisions applied.
+
 ## Tests
 
 ```powershell
@@ -218,4 +293,10 @@ These are deferred to the analytical layer by the strategy:
   - each flag rule, city/state standardisation, `category_map` and `zip_lookup` on small frames;
   - the full raw → staging → clean pipeline on fixtures: outputs, manifest, unchanged source columns, repeatability, blocking on stale staging, and CLI exit codes;
   - a real-data run into a temporary directory.
+- **Analytical-layer tests** (`tests/test_analytical.py`) cover:
+  - the D-15 lossless grain and V13 failure detection;
+  - independent aggregation without inflation, the rounding of the mismatch rule, and orders without items;
+  - join validation that rejects fan-out; financial checks that detect inflation;
+  - durations, order sequencing and the window flag; customer and date dimensions;
+  - the full raw → staging → clean → analytical pipeline on fixtures and on the real data.
 - **Integration tests** load the real raw data read-only. They compare row counts, dtypes, missing values, zip formats and checksums with the baselines measured in notebooks 01–03, and are skipped if `data/raw/` is absent.
