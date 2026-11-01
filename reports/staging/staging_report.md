@@ -1,8 +1,8 @@
 # Staging Report
 
-- **Run ID:** `2274f9e7fdff`
-- **Executed (UTC):** 2026-11-01T15:09:34+00:00
-- **Git commit:** `6e88bd113a3e0560e9fdf17fb3ec2c752b8bee58` (working tree has uncommitted changes)
+- **Run ID:** `b387742326b9`
+- **Executed (UTC):** 2026-11-01T15:13:05+00:00
+- **Git commit:** `2388130b4ab2c30cf21f78ff900822ac68b48a7c`
 - **Raw directory:** `data/raw` · **Output directory:** `data/staging`
 - **Baseline checksums verified:** True
 - **Outputs written:** True · **Success:** True
