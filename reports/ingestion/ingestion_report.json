@@ -1,0 +1,403 @@
+{
+  "generated_at_utc": "2026-11-01T15:00:01+00:00",
+  "python": "3.12.10",
+  "pandas": "3.1.0",
+  "raw_dir": "data\\raw",
+  "baseline_verified": true,
+  "raw_unchanged_after_load": true,
+  "datasets": [
+    {
+      "name": "customers",
+      "filename": "olist_customers_dataset.csv",
+      "rows": 99441,
+      "columns": 5,
+      "sha256": "983a422239e1712ded753b3bf9ecf47dc73f144d306029dcfa99e70a226883d2",
+      "columns_detail": [
+        {
+          "name": "customer_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "customer_unique_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "customer_zip_code_prefix",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "customer_city",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "customer_state",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "geolocation",
+      "filename": "olist_geolocation_dataset.csv",
+      "rows": 1000163,
+      "columns": 5,
+      "sha256": "b514f6fc991b9566aeba02aa5d67e2c3630f034b60a0e05aa0d082a3b66d88d6",
+      "columns_detail": [
+        {
+          "name": "geolocation_zip_code_prefix",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "geolocation_lat",
+          "dtype": "float64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "geolocation_lng",
+          "dtype": "float64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "geolocation_city",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "geolocation_state",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "orders",
+      "filename": "olist_orders_dataset.csv",
+      "rows": 99441,
+      "columns": 8,
+      "sha256": "8df58ef3d2d7e9944010f7beecd9b75367f5588ec6e3c91cec19ae3345ef9ecf",
+      "columns_detail": [
+        {
+          "name": "order_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "customer_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "order_status",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "order_purchase_timestamp",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "order_approved_at",
+          "dtype": "string",
+          "missing": 160,
+          "missing_pct": 0.161
+        },
+        {
+          "name": "order_delivered_carrier_date",
+          "dtype": "string",
+          "missing": 1783,
+          "missing_pct": 1.793
+        },
+        {
+          "name": "order_delivered_customer_date",
+          "dtype": "string",
+          "missing": 2965,
+          "missing_pct": 2.982
+        },
+        {
+          "name": "order_estimated_delivery_date",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "order_items",
+      "filename": "olist_order_items_dataset.csv",
+      "rows": 112650,
+      "columns": 7,
+      "sha256": "0bc4d068c4fe38cbb01bd90e8746e3c613fe7b4baef75fab7b0e329701c3e279",
+      "columns_detail": [
+        {
+          "name": "order_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "order_item_id",
+          "dtype": "Int64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "product_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "seller_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "shipping_limit_date",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "price",
+          "dtype": "float64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "freight_value",
+          "dtype": "float64",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "payments",
+      "filename": "olist_order_payments_dataset.csv",
+      "rows": 103886,
+      "columns": 5,
+      "sha256": "4f713964f2815dbbaa40b9488268c55aac3627bfce5aa96cf58d1f3616de3cc0",
+      "columns_detail": [
+        {
+          "name": "order_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "payment_sequential",
+          "dtype": "Int64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "payment_type",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "payment_installments",
+          "dtype": "Int64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "payment_value",
+          "dtype": "float64",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "reviews",
+      "filename": "olist_order_reviews_dataset.csv",
+      "rows": 99224,
+      "columns": 7,
+      "sha256": "012b61c7593e34f51fa614efdf802b9c7056ce6aae5307ddb93236e7cfc797d7",
+      "columns_detail": [
+        {
+          "name": "review_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "order_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "review_score",
+          "dtype": "Int64",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "review_comment_title",
+          "dtype": "string",
+          "missing": 87656,
+          "missing_pct": 88.342
+        },
+        {
+          "name": "review_comment_message",
+          "dtype": "string",
+          "missing": 58247,
+          "missing_pct": 58.703
+        },
+        {
+          "name": "review_creation_date",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "review_answer_timestamp",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "filename": "olist_products_dataset.csv",
+      "rows": 32951,
+      "columns": 9,
+      "sha256": "3e6569628a17fbc75fd206ee357b59e20364b9afa90f5b6cd5b4d624c58aa9cc",
+      "columns_detail": [
+        {
+          "name": "product_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "product_category_name",
+          "dtype": "string",
+          "missing": 610,
+          "missing_pct": 1.851
+        },
+        {
+          "name": "product_name_lenght",
+          "dtype": "Int64",
+          "missing": 610,
+          "missing_pct": 1.851
+        },
+        {
+          "name": "product_description_lenght",
+          "dtype": "Int64",
+          "missing": 610,
+          "missing_pct": 1.851
+        },
+        {
+          "name": "product_photos_qty",
+          "dtype": "Int64",
+          "missing": 610,
+          "missing_pct": 1.851
+        },
+        {
+          "name": "product_weight_g",
+          "dtype": "Int64",
+          "missing": 2,
+          "missing_pct": 0.006
+        },
+        {
+          "name": "product_length_cm",
+          "dtype": "Int64",
+          "missing": 2,
+          "missing_pct": 0.006
+        },
+        {
+          "name": "product_height_cm",
+          "dtype": "Int64",
+          "missing": 2,
+          "missing_pct": 0.006
+        },
+        {
+          "name": "product_width_cm",
+          "dtype": "Int64",
+          "missing": 2,
+          "missing_pct": 0.006
+        }
+      ]
+    },
+    {
+      "name": "sellers",
+      "filename": "olist_sellers_dataset.csv",
+      "rows": 3095,
+      "columns": 4,
+      "sha256": "1f643d2b950373b85735e7794b20986f528d7a000432e7c6f9bcbb44d0846a0e",
+      "columns_detail": [
+        {
+          "name": "seller_id",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "seller_zip_code_prefix",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "seller_city",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "seller_state",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    },
+    {
+      "name": "translation",
+      "filename": "product_category_name_translation.csv",
+      "rows": 71,
+      "columns": 2,
+      "sha256": "a81f0d1f27b27e7293f761bc79e3ce8f348ee39c4b3ed3e49bde38f478586278",
+      "columns_detail": [
+        {
+          "name": "product_category_name",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        },
+        {
+          "name": "product_category_name_english",
+          "dtype": "string",
+          "missing": 0,
+          "missing_pct": 0.0
+        }
+      ]
+    }
+  ]
+}

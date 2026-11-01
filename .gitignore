@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# Data is not versioned: raw files are third-party source data (verified by the SHA-256
+# checksums in src/ingestion/schema.py); processed files are reproducible pipeline outputs.
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
