@@ -111,13 +111,17 @@ All values below were measured in NB02 §3–4.
 
 ### 2.1 Layers
 
-The agreed project structure (`data/raw/`, `data/processed/`) is kept. The processed area is subdivided into three layers:
+The agreed project structure (`data/raw/`, `data/processed/`) is kept. The staging layer has its own directory, `data/staging/`, as implemented in Task 4.2. The clean and analytical layers are subdivisions of the processed area:
 
 ```
 data/
 ├── raw/                      # Layer 0 — immutable source (9 CSVs, never modified)
+├── staging/                  # Layer 1 — typed copy of raw, same rows, no business logic
+│   ├── <9 staged datasets>   #   customers, geolocation, orders, order_items, payments,
+│   │                         #   reviews, products, sellers, translation (.parquet)
+│   └── <3 derived outputs>   #   geolocation_rows, geolocation_points,
+│                             #   products_metadata_flags (.parquet)
 └── processed/
-    ├── staging/              # Layer 1 — typed copy of raw, same rows, no business logic
     ├── clean/                # Layer 2 — standardised + flagged, still at source grain
     └── analytical/           # Layer 3 — integrated datasets at declared grains
 ```
@@ -125,16 +129,18 @@ data/
 | Layer | Contents | Row rule | Allowed operations | Not allowed |
 |---|---|---|---|---|
 | **0 Raw** | The 9 original CSVs | — | Read only | Any write |
-| **1 Staging** | One file per source table | **Row count = raw row count**, exactly | Explicit typing (Section 3), column-name normalisation (with mapping), load metadata | Filtering, de-duplication, value changes |
-| **2 Clean** | One file per source table, plus reference tables (zip lookup, category mapping) | Same grain as source. Rows are kept; issues are flagged | Standardised *copies* of columns, `dq_*` flag columns, derived reference tables, lossless collapse of geolocation exact duplicates (D-10) | Overwriting raw values; imputation; deleting flagged rows |
+| **1 Staging** | One file per source table (the 9 **staged datasets**), plus 3 **derived structural outputs**: `geolocation_rows`, `geolocation_points` (D-10) and `products_metadata_flags` (4.3) | Staged datasets: **row count = raw row count**, exactly. Derived outputs: their own declared grain (distinct full row, distinct point, one row per product), reconstructable from the staged data | Staged datasets: explicit typing (Section 3), column-name normalisation (with mapping), load metadata. Derived outputs: lossless collapse of geolocation duplicates with occurrence counts; product missingness flags; the `dq_outside_brazil` point flag | Filtering, de-duplication *of the staged datasets*, value changes; ZIP centroids; `city_key`; quantity aggregation; other `dq_*` flags |
+| **2 Clean** | One file per source table, plus reference tables (zip lookup, category mapping) | Same grain as source. Rows are kept; issues are flagged | Standardised *copies* of columns (incl. `city_key`), the remaining `dq_*` flag columns, derived reference tables (`zip_lookup` built from the staging `geolocation_points`; `category_map`) | Overwriting raw values; imputation; deleting flagged rows |
 | **3 Analytical** | Integrated datasets (e.g. order-level, order-item-level, customer-level) | Grain declared per dataset and enforced | Pre-aggregation of one-to-many tables, validated joins, documented filters | Undeclared grain; joins without `validate=` |
+
+**The two kinds of staging output.** The nine **staged datasets** remain typed copies of the raw datasets: same rows, same values, with only the approved type conversions and the two column renames. The three **derived structural outputs** are separate files produced during staging from those typed copies. They never alter the staged datasets: each one either reconstructs its source losslessly (geolocation occurrence counts) or adds information alongside it (product flags keyed by `product_id`).
 
 **Storage format: Parquet** (`pyarrow` is installed). Parquet preserves the declared types: zip codes stay as strings, timestamps stay as datetimes, nullable integers stay integers. Re-reading a CSV would re-trigger the inference problems found in NB03 §4.
 
 > **D-02 — Raw immutability and layered processing.**
 > - **Observed:** the analyses so far relied on raw files whose SHA-256 hashes have been verified unchanged after every notebook (NB01–NB03).
-> - **Treatment:** pipelines only ever **read** `data/raw/`. All outputs go to `data/processed/<layer>/`. A run fails if any raw hash changes.
-> - **Justification:** keeps the source of truth for re-processing and audit. Separating layers isolates technical typing (staging) from quality judgements (clean) and from business integration (analytical).
+> - **Treatment:** pipelines only ever **read** `data/raw/`. Outputs go to `data/staging/` (staging layer) or `data/processed/<layer>/` (clean and analytical layers). A run fails if any raw hash changes.
+> - **Justification:** keeps the source of truth for re-processing and audit. Separating layers isolates technical typing and structural derivation (staging) from quality judgements (clean) and from business integration (analytical). The only flags produced in staging are part of its derived outputs: the product missingness flags (factual: a value is missing or not) and `dq_outside_brazil` on geolocation points (a fixed bounding-box rule). All other `dq_*` flags belong to the clean layer.
 > - **Business implication:** any figure can be traced back to unmodified source data, and any treatment can be revised without re-acquiring data.
 > - **Validation:** compare SHA-256 against the baseline recorded in NB03 §11 at the start and end of every run. Staging row counts must equal raw row counts.
 
@@ -213,12 +219,14 @@ Neither type is imputed. Analyses filter to eligible records explicitly instead.
 
 > **D-06 — No deletion, no imputation of missing values.**
 > - **Observed:** missing values exist in only 3 of 9 tables (NB01, NB03 §2.1). Their pattern is mostly explained by `order_status` or by optional fields.
-> - **Treatment:** keep all missing values. Add `dq_*` flags only for the **gaps**: delivered orders missing timestamps, and products missing metadata (flags defined in 4.3). Analyses define eligibility explicitly; for example, delivery-time metrics use delivered orders that have both purchase and delivery timestamps.
+> - **Treatment:** keep all missing values. Add `dq_*` flags only for the **gaps**: delivered orders missing timestamps (clean layer), and products missing metadata (flags defined in 4.3, produced in staging as `products_metadata_flags`). Analyses define eligibility explicitly; for example, delivery-time metrics use delivered orders that have both purchase and delivery timestamps.
 > - **Justification:** imputing a timestamp or a category would fabricate facts (P3). Deleting rows would remove sales (e.g. the 1,603 items of uncategorised products) and bias revenue and volume.
 > - **Business implication:** metrics state their eligible population. Revenue totals stay complete.
 > - **Validation:** missing counts per column in clean = raw counts (no new NaN, none removed). Order flag counts equal the NB03 baselines (14 / 2 / 8). Product flag counts equal the baselines in 4.3. All are listed in 11.3.
 
 ### 4.3 Product metadata flags
+
+**Layer:** produced in **staging** as the derived output `products_metadata_flags.parquet`, with one row per product: `product_id` plus the 11 flags below. The staged `products` dataset itself is not modified.
 
 **Evidence** (NB03 §2.1–2.2): the missing-value pattern in `products` has exactly four combinations.
 
@@ -286,7 +294,7 @@ These flags never cause a product or order item to be excluded from sales totals
 >
 > | Dataset | Treatment |
 > |---|---|
-> | `geolocation` | See D-10. Losslessly collapse exact duplicate **full rows** (one row per distinct full row, with `occurrence_count`), so the original row count can be reconstructed. Distinct *coordinate points* are a separate structure (D-10). |
+> | `geolocation` | See D-10. The staged `geolocation` dataset keeps all 1,000,163 rows. Separately, staging produces `geolocation_rows`, which collapses exact duplicate **full rows** losslessly (one row per distinct full row, with `occurrence_count`), so the original row count can be reconstructed. Distinct *coordinate points* are a separate staging output, `geolocation_points` (D-10). |
 > | `order_items` | **Keep all rows** in clean at grain `(order_id, order_item_id)`. Quantity is derived only in the analytical layer, at the grain defined in D-15. |
 > | `payments` | **Keep all rows.** The 614 repeats are not proven duplicates (see Q-10). |
 > | `reviews` | **Keep all rows** at grain `(review_id, order_id)`. Flag `dq_review_id_shared` (1,603 rows) and `dq_review_content_duplicate` (86 rows). For review-level counts, count distinct `review_id`. The order-level review rule is a business decision (Q-04). |
@@ -298,7 +306,7 @@ These flags never cause a product or order item to be excluded from sales totals
 > - **Business implication:** sales volumes, revenue and review links stay correct. Review and customer counts use the right distinct keys.
 > - **Validation:**
 >   - `order_items` row count and price sum are unchanged (112,650; 13,591,643.70).
->   - In clean geolocation, `sum(occurrence_count)` = 1,000,163.
+>   - In the staging output `geolocation_rows`, `sum(occurrence_count)` = 1,000,163.
 >   - Distinct `review_id` = 98,410 and distinct `customer_unique_id` = 96,096, unchanged.
 
 ### 5.3 Order-item quantity grain
@@ -402,7 +410,7 @@ Every unusual value is placed in one of three classes (NB03 §8.1):
 | `payment_value` < 0 | 0 | — | Regression check, expected 0. Zero payments (9) are treated separately below |
 | `review_score` outside 1–5 | 0 | — | Regression check, expected 0 |
 | `product_weight_g` = 0 | 4 products (all `cama_mesa_banho`, 30×25×30 cm) | Invalid | Flag `dq_weight_zero`. Analysis column `weight_g_valid` = missing. Original kept |
-| Coordinates outside Brazil's bounding box | 42 rows / 21 zip prefixes | Invalid | Flag. Excluded from zip-centroid computation (D-10) |
+| Coordinates outside Brazil's bounding box | 42 rows / 21 zip prefixes | Invalid | Flag `dq_outside_brazil`, produced in staging on `geolocation_points`. Excluded from the zip-centroid computation (clean layer, D-10) |
 | `payment_installments` = 0 (credit card) | 2 | Invalid as stated | See D-16 |
 | `shipping_limit_date` in 2020 | 4 rows | Invalid (out of range) | Flag (D-08) |
 | Density > 2 g/cm³ (heuristic screen) | 159 products | **Suspicious** | Flag `dq_density_suspicious`. No exclusion, no correction. 58 of 159 (36.5%) have dimensions 16×2×11 cm (Q-06) |
@@ -541,15 +549,15 @@ All standardised values are **added as new columns**. The raw value is always ke
 
 **Consequence:** collapsing exact duplicate full rows does **not** give one row per coordinate. Any calculation that must count each coordinate once has to work on distinct `(zip, lat, lng)` points, not on distinct full rows.
 
-> **D-10 — Two lossless clean structures, then an unweighted zip-level lookup.**
+> **D-10 — Two lossless staging structures, then an unweighted zip-level lookup (clean layer, deferred).**
 > - **Observed:** as above.
 > - **Treatment:**
->   1. **`geolocation_rows`** (clean): one row per distinct full row, expected 738,332. Columns: the 5 source columns (zip as text) and `occurrence_count` (number of identical raw rows), plus `city_key` (D-11). Every raw value, including spelling variants, is preserved. The raw table can be reconstructed exactly by repeating each row `occurrence_count` times.
->   2. **`geolocation_points`** (clean): one row per distinct `(zip, lat, lng)`, expected 720,154. Columns:
+>   1. **`geolocation_rows`** (staging, derived output): one row per distinct full row, expected 738,332. Columns: the 5 source columns (zip as text) and `occurrence_count` (number of identical raw rows). Every raw value, including spelling variants, is preserved. The raw table can be reconstructed exactly by repeating each row `occurrence_count` times. `city_key` (D-11) is **not** added in staging; it is a clean-layer standardisation.
+>   2. **`geolocation_points`** (staging, derived output): one row per distinct `(zip, lat, lng)`, expected 720,154. Columns:
 >      - `raw_row_count` = sum of `occurrence_count` over the full rows that share this point;
 >      - `n_full_rows`, `n_city_spellings`, `n_states`;
 >      - `dq_outside_brazil`, using the same bounding box as NB03 §6.5.
->   3. **`zip_lookup`** (clean reference): one row for **each** of the 19,015 zip prefixes. For zip *z*, let *P(z)* be the set of rows in `geolocation_points` with that zip and `dq_outside_brazil` = False. Then:
+>   3. **`zip_lookup`** (clean reference; **deferred**, not computed in staging): built from the staging output `geolocation_points`, with one row for **each** of the 19,015 zip prefixes. For zip *z*, let *P(z)* be the set of rows in `geolocation_points` with that zip and `dq_outside_brazil` = False. Then:
 >      - `lat_centroid` = median of `geolocation_lat` over *P(z)*;
 >      - `lng_centroid` = median of `geolocation_lng` over *P(z)*.
 >
@@ -570,21 +578,23 @@ All standardised values are **added as new columns**. The raw value is always ke
 >   - A one-row-per-zip lookup turns a many-to-many relationship into many-to-one, so joins cannot fan out.
 > - **Business implication:** maps and distance features without row explosion. Centroids are approximate zip-area locations, not addresses.
 > - **Validation:**
->   - **Blocking (V12):**
->     - `sum(occurrence_count)` over `geolocation_rows` = staging geolocation row count;
+>   - **Blocking (V12), staging:**
+>     - `sum(occurrence_count)` over `geolocation_rows` = staged geolocation row count;
 >     - `sum(raw_row_count)` over `geolocation_points` = the same count;
 >     - `geolocation_rows` has no exact duplicates;
->     - `geolocation_points` has no duplicate `(zip, lat, lng)`;
+>     - `geolocation_points` has no duplicate `(zip, lat, lng)`.
+>   - **Blocking (V12), clean (when `zip_lookup` is built):**
 >     - `zip_lookup` has a unique zip key;
 >     - joins keep customer and seller row counts (99,441 / 3,095).
 >   - **Regression (11.3):**
->     - `geolocation_rows` = 738,332 rows, `geolocation_points` = 720,154 rows, `zip_lookup` = 19,015 rows;
->     - raw rows flagged outside Brazil = 42;
+>     - staging: `geolocation_rows` = 738,332 rows, `geolocation_points` = 720,154 rows;
+>     - clean: `zip_lookup` = 19,015 rows;
+>     - raw rows flagged outside Brazil = 42 (staging, `geolocation_points.dq_outside_brazil`);
 >     - `dq_zip_multi_state` = 8;
 >     - customers / sellers with no zip in geolocation = 278 / 7.
 >   - **Consistency:** for every zip, `n_points_used` + `n_points_excluded_outside_brazil` = number of its distinct points. Summed over all zips, this equals 720,154.
 >   - **Plausibility:** every non-missing centroid lies inside the bounding box, and between the minimum and maximum of its zip's used points on each axis.
->   - **Warnings (11.4):** the number of distinct points flagged outside Brazil, and the number of zips with `dq_zip_no_valid_point`. Neither was measured in NB01–NB03.
+>   - **Warnings (11.4):** the number of distinct points flagged outside Brazil (staging, W02), and the number of zips with `dq_zip_no_valid_point` (clean, W03). Neither was measured in NB01–NB03.
 
 ---
 
@@ -615,7 +625,7 @@ Regression baselines are **not** warnings. A deviation stops the run, as with a 
 | V09 | Monetary totals preserved | Sums of price, freight and payment in clean and analytical outputs = sums computed from staging in the same run | Clean, analytical |
 | V10 | Declared grain | Grain key unique in every analytical dataset | Analytical |
 | V11 | Merge cardinality | Every merge declares `validate=`; no `MergeError` | Analytical |
-| V12 | Lossless geolocation structures | Conditions listed in D-10 (occurrence sums = staging rows; no duplicate full rows or points; unique zip key) | Clean |
+| V12 | Lossless geolocation structures | Conditions listed in D-10: occurrence sums = staged geolocation rows and no duplicate full rows or points (staging); unique zip key and join row counts (clean) | Staging (`geolocation_rows`, `geolocation_points`); clean (`zip_lookup`) |
 | V13 | Lossless order-line aggregation (D-15) | `sum(quantity)` = order_items rows; each `(order_id, order_item_id)` in exactly one line; line price and freight totals = item totals | Analytical |
 | V14 | Source values unchanged | Every source column in clean is identical to staging (standardisation and flags only add columns) | Clean |
 
@@ -675,7 +685,8 @@ These restate measured facts as expected counts. They are not business validity 
 | Sum of price / freight / payment | 13,591,643.70 / 2,251,909.54 / 16,008,872.12 | NB02 §6.2; NB03 §6.2 |
 | Distinct `review_id` / `customer_unique_id` | 98,410 / 96,096 | NB02 §4, §5.2 |
 | Products with untranslated category, before / after `category_map` | 13 / 0 | NB02 §3.2 |
-| `geolocation_rows` / `geolocation_points` / `zip_lookup` rows | 738,332 / 720,154 / 19,015 | NB02 §2.2, §5.3 |
+| `geolocation_rows` / `geolocation_points` rows (staging) | 738,332 / 720,154 | NB02 §2.2, §5.3 |
+| `zip_lookup` rows (clean, deferred) | 19,015 | NB02 §5.3 |
 | Customers / sellers with no zip in geolocation | 278 / 7 | NB02 §3.2 |
 | Order lines at the six-attribute grain (D-15) | 102,425 | Derived from NB03 §3.3 |
 | Order-level analytical dataset rows | 99,441 | NB01 |
@@ -731,9 +742,10 @@ The sequence is designed so that each step depends only on validated outputs of 
 | 1 | Staging | Load each CSV **once** with an explicit schema: IDs and zips as `string`; dates parsed with explicit format; integers as `Int64`; categoricals | V02, V03, V06, V07 |
 | 2 | Staging | Rename misspelled columns via `column_name_map` (D-05); add load metadata (source file, source hash, run ID) | V03 |
 | 3 | Staging | Validate keys and referential integrity against the NB02 baseline | V04, V05 |
+| 3a | Staging | Derived structural outputs from the staged data: `geolocation_rows`, then `geolocation_points` with `dq_outside_brazil` (D-10); `products_metadata_flags` (4.3). The staged datasets are not modified | V12 (staging part); regression structural and product-flag counts (11.3.1, 11.3.3); warning W02 |
 | 4 | Clean | Categorical standardisation into new `_std` / `city_key` columns (D-11) | V14 |
-| 5 | Clean | Build reference tables: `category_map` (D-12); `geolocation_rows`, then `geolocation_points`, then `zip_lookup` (D-10) | V12; regression structural counts (11.3.3); warnings W02–W03 |
-| 6 | Clean | Missing-value gap flags, including product field-level and row-level flags (D-06, 4.3) | V08; regression flag counts (11.3.1) |
+| 5 | Clean | Build reference tables: `category_map` (D-12); `zip_lookup` from the staging `geolocation_points` (D-10) | V12 (clean part); regression `zip_lookup` count (11.3.3); warning W03 |
+| 6 | Clean | Missing-value gap flags for delivered orders (D-06). Product metadata flags already exist from step 3a | V08; regression flag counts (11.3.1) |
 | 7 | Clean | Chronology and status flags (D-08) | Regression flag counts (11.3.1) |
 | 8 | Clean | Numerical validity and suspicion flags (D-09, D-16) | Regression flag and domain-rule counts (11.3.1–11.3.2) |
 | 9 | Clean | Duplicate-related flags (`review_id` shared, review content duplicates, same-person-same-second) (D-07) | Regression flag counts (11.3.1) |
@@ -743,7 +755,7 @@ The sequence is designed so that each step depends only on validated outputs of 
 | 13 | Analytical | Apply the **analysis window** as a documented filter or flag (Q-11). Not applied in clean | Window recorded in manifest |
 | 14 | — | Write the validation report; verify raw SHA-256 again; close the manifest | V01; all blocking and regression checks; warnings recorded |
 
-Typing is done first (steps 1–3) because every later check depends on correct types: date comparisons need datetimes, and zip joins need consistent text. Flags (steps 6–9) are computed on clean, typed data and before any aggregation, so they stay at source grain and can be traced to individual records. Aggregation and integration come last (steps 11–13), so double-counting cannot enter the clean layer.
+Typing is done first (steps 1–3) because every later check depends on correct types: date comparisons need datetimes, and zip joins need consistent text. The staging derived outputs (step 3a) come straight after typing because they only restructure (geolocation) or describe (product flags) the typed data, without needing any clean-layer standardisation. Flags (steps 6–9) are computed on clean, typed data and before any aggregation, so they stay at source grain and can be traced to individual records. Aggregation and integration come last (steps 11–13), so double-counting cannot enter the clean layer.
 
 ---
 
@@ -796,7 +808,7 @@ These issues **cannot be resolved safely from the data alone**. Until each is de
 | D-07 | Duplicates treated by type; no blanket de-duplication | Item repeats are quantity; `review_id` repeats are shared reviews |
 | D-08 | Flag invalid date sequences per rule; never replace dates | 166 / 23 impossible; 1,359 / 61 suspicious; 8 + 6 status conflicts |
 | D-09 | Preserve outliers; flag invalid values and heuristic suspects only | Extremes corroborated (99.9% reconcile; ρ = 0.447) |
-| D-10 | Geolocation: lossless full-row table (738,332) and distinct-point table (720,154), then a zip lookup using the **unweighted** median over distinct in-Brazil points; join only via the lookup | 261,831 exact duplicate full rows; 720,154 distinct points; ×151.7 fan-out; 42 out-of-country rows |
+| D-10 | Geolocation: lossless full-row table (738,332) and distinct-point table (720,154), both staging derived outputs; then a zip lookup (clean, deferred) using the **unweighted** median over distinct in-Brazil points; join only via the lookup | 261,831 exact duplicate full rows; 720,154 distinct points; ×151.7 fan-out; 42 out-of-country rows |
 | D-11 | Standardise categoricals into new columns; keep raw values | 2,045 geo city variants; 24 malformed seller cities |
 | D-12 | Project-owned category mapping table | 2 untranslated, 4 typos, 2 twins, 610 missing |
 | D-13 | Aggregate payments and items to order level before joining; never force reconciliation | +26.86% payment inflation; 303 mismatched orders |
