@@ -9,12 +9,15 @@ retail-intelligence/
 ├── data/
 │   ├── raw/            # 9 original Olist CSVs — read-only, never modified
 │   ├── staging/        # Task 4.2 — typed Parquet copies + derived structures (not versioned)
-│   └── processed/      # later layers (clean / analytical)
+│   └── processed/
+│       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
+│       └── _manifest/  # one JSON run manifest per clean run (not versioned)
 ├── notebooks/          # 01 inventory · 02 relationships · 03 data quality
-├── reports/            # data_preparation_strategy.md, ingestion reports
+├── reports/            # data_preparation_strategy.md, ingestion / staging / clean reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
-│   └── staging/        # Task 4.2 — staging layer (Parquet)
+│   ├── staging/        # Task 4.2 — staging layer (Parquet)
+│   └── clean/          # Task 4.3 — clean layer (Parquet)
 ├── tests/              # automated tests (unittest)
 ├── dashboards/
 ├── models/
@@ -136,6 +139,74 @@ These are deferred because the strategy places them elsewhere:
 
 They also record every check result (blocking, regression and warning), the execution timestamp and the git commit hash.
 
+## Clean layer (Task 4.3)
+
+The clean layer reads the **staging Parquet outputs**, never the raw CSVs. It writes each source table at its source grain: the same rows, in the same order, with every staged column unchanged. Standardised copies and `dq_*` data-quality flags are appended as new columns. It also builds two reference tables. Nothing is deleted, imputed, de-duplicated or aggregated (strategy P2–P4, D-06–D-12, D-16).
+
+### Run
+
+```powershell
+.venv\Scripts\python.exe -m src.staging      # prerequisite: staging outputs in data/staging
+.venv\Scripts\python.exe -m src.clean
+```
+
+| Option | Purpose |
+|---|---|
+| `--staging-dir PATH` | Staging Parquet directory (default `data/staging`) |
+| `--out-dir PATH` | Clean Parquet output directory (default `data/processed/clean`) |
+| `--manifest-dir PATH` | Run manifest directory (default `data/processed/_manifest`) |
+| `--report-dir PATH` | Report directory (default `reports/clean`) |
+| `--raw-dir PATH` | Raw CSV directory. Only checksummed, never parsed (default `data/raw`) |
+| `--skip-baseline-check` | Skip the baseline checksum and regression checks. Intended for test fixtures only |
+
+Exit code `0` means every blocking and regression check passed and all outputs were written and read back identically. Exit code `1` means a failure. The run is refused before writing if:
+- staging is missing;
+- staging was built from raw files that differ from the current ones (lineage SHA-256 check);
+- a project override in `category_map` no longer matches the source translation.
+
+### Outputs (`data/processed/clean/`)
+
+| File | Rows | Added columns |
+|---|---:|---|
+| `customers` | 99,441 | `city_key`, `customer_state_std`, `lat_centroid`, `lng_centroid`, `dq_no_geolocation` |
+| `sellers` | 3,095 | as customers (`seller_state_std`), plus `dq_city_malformed` |
+| `geolocation` | 1,000,163 | `geolocation_city_std` (URL-encoded apostrophe decoded), `city_key`, `geolocation_state_std` |
+| `orders` | 99,441 | delivered-order gap flags (D-06), chronology/status flags (D-08), `dq_same_person_same_second` (D-07) |
+| `order_items` | 112,650 | `dq_shipping_limit_out_of_range`. Source grain `(order_id, order_item_id)` kept; quantity is derived in the analytical layer (D-15) |
+| `payments` | 103,886 | `dq_payment_zero`, `dq_installments_zero` (the recorded 0 is kept, D-16) |
+| `reviews` | 99,224 | `has_comment_title/message`, `dq_review_id_shared`, `dq_review_content_duplicate`, `dq_review_before_purchase`, `dq_review_before_delivery` |
+| `products` | 32,951 | the 11 staging metadata flags (joined from `products_metadata_flags`, not recomputed), `dq_weight_zero` + `weight_g_valid`, `dq_density_suspicious`, `dq_dims_16x2x11`, `category_en_clean`, `category_reporting` |
+| `translation` | 71 | none (corrections live in `category_map`) |
+| `category_map` | 73 | Reference table: source and corrected English label per Portuguese category, with `is_added_by_project` and a `note` |
+| `zip_lookup` | 19,015 | Reference table: one row per zip. Unweighted component-wise median centroid over the distinct in-Brazil points, point counts, `dq_zip_multi_state`, `dq_zip_no_valid_point` |
+
+Every added column's dtype, source column(s), rule and strategy decision are declared in `src/clean/schema.py` (`ADDED_COLUMNS`). They are also embedded in each Parquet file's lineage metadata (`src.staging.read_lineage(path)`).
+
+**Project-owned labels** are in `src/clean/reference.py`, versioned with change notes:
+- the 4 English typo corrections;
+- the 2 added translations, with provisional wording pending Q-05;
+- the `uncategorized` reporting label, provisional, Q-05.
+
+### Not in the clean layer
+
+These are deferred to the analytical layer by the strategy:
+- order-line quantity (D-15);
+- order-level payment and item summaries and `dq_payment_items_mismatch` (D-13);
+- delivery durations (D-08 item 3);
+- the analysis window (Q-11);
+- warnings W01 and W05.
+
+### Lineage and reports
+
+- `data/processed/_manifest/<run_id>.json` (D-14) contains:
+  - run ID and timestamps;
+  - git commit and a SHA-256 of `src/`;
+  - Python and library versions and parameters;
+  - the input registry: raw files and the staging files with their staging run ID;
+  - processing steps with row counts;
+  - the output registry: path, grain, rows, schema, file SHA-256, and a run-independent content SHA-256 that is identical across repeated runs.
+- `reports/clean/clean_report.md` and `clean_report.json` list every output, its added columns, flag counts, schema and missing values, and every check result.
+
 ## Tests
 
 ```powershell
@@ -143,4 +214,8 @@ They also record every check result (blocking, regression and warning), the exec
 ```
 
 - **Unit tests** use temporary fixture files. They cover missing files, header mismatches, parse failures, leading-zero preservation, missing-value handling, the byte-order mark, checksums and the CLI.
+- **Clean-layer tests** (`tests/test_clean.py`) cover:
+  - each flag rule, city/state standardisation, `category_map` and `zip_lookup` on small frames;
+  - the full raw → staging → clean pipeline on fixtures: outputs, manifest, unchanged source columns, repeatability, blocking on stale staging, and CLI exit codes;
+  - a real-data run into a temporary directory.
 - **Integration tests** load the real raw data read-only. They compare row counts, dtypes, missing values, zip formats and checksums with the baselines measured in notebooks 01–03, and are skipped if `data/raw/` is absent.
