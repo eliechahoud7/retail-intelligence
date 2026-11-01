@@ -1,0 +1,1591 @@
+{
+  "run_id": "2274f9e7fdff",
+  "executed_at_utc": "2026-11-01T15:09:34+00:00",
+  "git": {
+    "commit": "6e88bd113a3e0560e9fdf17fb3ec2c752b8bee58",
+    "dirty": true
+  },
+  "python": "3.12.10",
+  "pandas": "3.1.0",
+  "raw_dir": "data/raw",
+  "output_dir": "data/staging",
+  "baseline_verified": true,
+  "outputs_written": true,
+  "success": true,
+  "check_summary": {
+    "blocking": {
+      "total": 76,
+      "passed": 76,
+      "failed": 0
+    },
+    "regression": {
+      "total": 41,
+      "passed": 41,
+      "failed": 0
+    },
+    "warning": {
+      "total": 3,
+      "passed": 0,
+      "failed": 0
+    }
+  },
+  "outputs": [
+    {
+      "output_dataset": "customers",
+      "kind": "staged",
+      "path": "data/staging/customers.parquet",
+      "source_datasets": [
+        "customers"
+      ],
+      "source_files": [
+        "olist_customers_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_customers_dataset.csv": "983a422239e1712ded753b3bf9ecf47dc73f144d306029dcfa99e70a226883d2"
+      },
+      "rows_in": 99441,
+      "rows_out": 99441,
+      "columns": 5,
+      "schema": {
+        "customer_id": "string",
+        "customer_unique_id": "string",
+        "customer_zip_code_prefix": "string",
+        "customer_city": "string",
+        "customer_state": "category"
+      },
+      "missing_values": {
+        "customer_id": 0,
+        "customer_unique_id": 0,
+        "customer_zip_code_prefix": 0,
+        "customer_city": 0,
+        "customer_state": 0
+      },
+      "transformations": [
+        "customer_state: string -> category (27 observed values)"
+      ]
+    },
+    {
+      "output_dataset": "geolocation",
+      "kind": "staged",
+      "path": "data/staging/geolocation.parquet",
+      "source_datasets": [
+        "geolocation"
+      ],
+      "source_files": [
+        "olist_geolocation_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_geolocation_dataset.csv": "b514f6fc991b9566aeba02aa5d67e2c3630f034b60a0e05aa0d082a3b66d88d6"
+      },
+      "rows_in": 1000163,
+      "rows_out": 1000163,
+      "columns": 5,
+      "schema": {
+        "geolocation_zip_code_prefix": "string",
+        "geolocation_lat": "float64",
+        "geolocation_lng": "float64",
+        "geolocation_city": "string",
+        "geolocation_state": "category"
+      },
+      "missing_values": {
+        "geolocation_zip_code_prefix": 0,
+        "geolocation_lat": 0,
+        "geolocation_lng": 0,
+        "geolocation_city": 0,
+        "geolocation_state": 0
+      },
+      "transformations": [
+        "geolocation_state: string -> category (27 observed values)"
+      ]
+    },
+    {
+      "output_dataset": "orders",
+      "kind": "staged",
+      "path": "data/staging/orders.parquet",
+      "source_datasets": [
+        "orders"
+      ],
+      "source_files": [
+        "olist_orders_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_orders_dataset.csv": "8df58ef3d2d7e9944010f7beecd9b75367f5588ec6e3c91cec19ae3345ef9ecf"
+      },
+      "rows_in": 99441,
+      "rows_out": 99441,
+      "columns": 8,
+      "schema": {
+        "order_id": "string",
+        "customer_id": "string",
+        "order_status": "category",
+        "order_purchase_timestamp": "datetime64[us]",
+        "order_approved_at": "datetime64[us]",
+        "order_delivered_carrier_date": "datetime64[us]",
+        "order_delivered_customer_date": "datetime64[us]",
+        "order_estimated_delivery_date": "datetime64[us]"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "customer_id": 0,
+        "order_status": 0,
+        "order_purchase_timestamp": 0,
+        "order_approved_at": 160,
+        "order_delivered_carrier_date": 1783,
+        "order_delivered_customer_date": 2965,
+        "order_estimated_delivery_date": 0
+      },
+      "transformations": [
+        "order_purchase_timestamp: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)",
+        "order_approved_at: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)",
+        "order_delivered_carrier_date: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)",
+        "order_delivered_customer_date: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)",
+        "order_estimated_delivery_date: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)",
+        "order_status: string -> category (8 observed values)"
+      ]
+    },
+    {
+      "output_dataset": "order_items",
+      "kind": "staged",
+      "path": "data/staging/order_items.parquet",
+      "source_datasets": [
+        "order_items"
+      ],
+      "source_files": [
+        "olist_order_items_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_order_items_dataset.csv": "0bc4d068c4fe38cbb01bd90e8746e3c613fe7b4baef75fab7b0e329701c3e279"
+      },
+      "rows_in": 112650,
+      "rows_out": 112650,
+      "columns": 7,
+      "schema": {
+        "order_id": "string",
+        "order_item_id": "Int64",
+        "product_id": "string",
+        "seller_id": "string",
+        "shipping_limit_date": "datetime64[us]",
+        "price": "float64",
+        "freight_value": "float64"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "order_item_id": 0,
+        "product_id": 0,
+        "seller_id": 0,
+        "shipping_limit_date": 0,
+        "price": 0,
+        "freight_value": 0
+      },
+      "transformations": [
+        "shipping_limit_date: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)"
+      ]
+    },
+    {
+      "output_dataset": "payments",
+      "kind": "staged",
+      "path": "data/staging/payments.parquet",
+      "source_datasets": [
+        "payments"
+      ],
+      "source_files": [
+        "olist_order_payments_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_order_payments_dataset.csv": "4f713964f2815dbbaa40b9488268c55aac3627bfce5aa96cf58d1f3616de3cc0"
+      },
+      "rows_in": 103886,
+      "rows_out": 103886,
+      "columns": 5,
+      "schema": {
+        "order_id": "string",
+        "payment_sequential": "Int64",
+        "payment_type": "category",
+        "payment_installments": "Int64",
+        "payment_value": "float64"
+      },
+      "missing_values": {
+        "order_id": 0,
+        "payment_sequential": 0,
+        "payment_type": 0,
+        "payment_installments": 0,
+        "payment_value": 0
+      },
+      "transformations": [
+        "payment_type: string -> category (5 observed values)"
+      ]
+    },
+    {
+      "output_dataset": "reviews",
+      "kind": "staged",
+      "path": "data/staging/reviews.parquet",
+      "source_datasets": [
+        "reviews"
+      ],
+      "source_files": [
+        "olist_order_reviews_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_order_reviews_dataset.csv": "012b61c7593e34f51fa614efdf802b9c7056ce6aae5307ddb93236e7cfc797d7"
+      },
+      "rows_in": 99224,
+      "rows_out": 99224,
+      "columns": 7,
+      "schema": {
+        "review_id": "string",
+        "order_id": "string",
+        "review_score": "Int64",
+        "review_comment_title": "string",
+        "review_comment_message": "string",
+        "review_creation_date": "datetime64[us]",
+        "review_answer_timestamp": "datetime64[us]"
+      },
+      "missing_values": {
+        "review_id": 0,
+        "order_id": 0,
+        "review_score": 0,
+        "review_comment_title": 87656,
+        "review_comment_message": 58247,
+        "review_creation_date": 0,
+        "review_answer_timestamp": 0
+      },
+      "transformations": [
+        "review_creation_date: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)",
+        "review_answer_timestamp: text -> datetime64[us] (format '%Y-%m-%d %H:%M:%S', timezone-naive)"
+      ]
+    },
+    {
+      "output_dataset": "products",
+      "kind": "staged",
+      "path": "data/staging/products.parquet",
+      "source_datasets": [
+        "products"
+      ],
+      "source_files": [
+        "olist_products_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_products_dataset.csv": "3e6569628a17fbc75fd206ee357b59e20364b9afa90f5b6cd5b4d624c58aa9cc"
+      },
+      "rows_in": 32951,
+      "rows_out": 32951,
+      "columns": 9,
+      "schema": {
+        "product_id": "string",
+        "product_category_name": "string",
+        "product_name_length": "Int64",
+        "product_description_length": "Int64",
+        "product_photos_qty": "Int64",
+        "product_weight_g": "Int64",
+        "product_length_cm": "Int64",
+        "product_height_cm": "Int64",
+        "product_width_cm": "Int64"
+      },
+      "missing_values": {
+        "product_id": 0,
+        "product_category_name": 610,
+        "product_name_length": 610,
+        "product_description_length": 610,
+        "product_photos_qty": 610,
+        "product_weight_g": 2,
+        "product_length_cm": 2,
+        "product_height_cm": 2,
+        "product_width_cm": 2
+      },
+      "transformations": [
+        "renamed product_name_lenght -> product_name_length (strategy D-05)",
+        "renamed product_description_lenght -> product_description_length (strategy D-05)"
+      ]
+    },
+    {
+      "output_dataset": "sellers",
+      "kind": "staged",
+      "path": "data/staging/sellers.parquet",
+      "source_datasets": [
+        "sellers"
+      ],
+      "source_files": [
+        "olist_sellers_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_sellers_dataset.csv": "1f643d2b950373b85735e7794b20986f528d7a000432e7c6f9bcbb44d0846a0e"
+      },
+      "rows_in": 3095,
+      "rows_out": 3095,
+      "columns": 4,
+      "schema": {
+        "seller_id": "string",
+        "seller_zip_code_prefix": "string",
+        "seller_city": "string",
+        "seller_state": "category"
+      },
+      "missing_values": {
+        "seller_id": 0,
+        "seller_zip_code_prefix": 0,
+        "seller_city": 0,
+        "seller_state": 0
+      },
+      "transformations": [
+        "seller_state: string -> category (23 observed values)"
+      ]
+    },
+    {
+      "output_dataset": "translation",
+      "kind": "staged",
+      "path": "data/staging/translation.parquet",
+      "source_datasets": [
+        "translation"
+      ],
+      "source_files": [
+        "product_category_name_translation.csv"
+      ],
+      "source_sha256": {
+        "product_category_name_translation.csv": "a81f0d1f27b27e7293f761bc79e3ce8f348ee39c4b3ed3e49bde38f478586278"
+      },
+      "rows_in": 71,
+      "rows_out": 71,
+      "columns": 2,
+      "schema": {
+        "product_category_name": "string",
+        "product_category_name_english": "string"
+      },
+      "missing_values": {
+        "product_category_name": 0,
+        "product_category_name_english": 0
+      },
+      "transformations": [
+        "no structural change (types already final from ingestion)"
+      ]
+    },
+    {
+      "output_dataset": "geolocation_rows",
+      "kind": "derived",
+      "path": "data/staging/geolocation_rows.parquet",
+      "source_datasets": [
+        "geolocation"
+      ],
+      "source_files": [
+        "olist_geolocation_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_geolocation_dataset.csv": "b514f6fc991b9566aeba02aa5d67e2c3630f034b60a0e05aa0d082a3b66d88d6"
+      },
+      "rows_in": 1000163,
+      "rows_out": 738332,
+      "columns": 6,
+      "schema": {
+        "geolocation_zip_code_prefix": "string",
+        "geolocation_lat": "float64",
+        "geolocation_lng": "float64",
+        "geolocation_city": "string",
+        "geolocation_state": "category",
+        "occurrence_count": "int64"
+      },
+      "missing_values": {
+        "geolocation_zip_code_prefix": 0,
+        "geolocation_lat": 0,
+        "geolocation_lng": 0,
+        "geolocation_city": 0,
+        "geolocation_state": 0,
+        "occurrence_count": 0
+      },
+      "transformations": [
+        "one row per distinct full row (zip, lat, lng, city, state)",
+        "occurrence_count = number of identical raw rows (lossless; strategy D-10)"
+      ]
+    },
+    {
+      "output_dataset": "geolocation_points",
+      "kind": "derived",
+      "path": "data/staging/geolocation_points.parquet",
+      "source_datasets": [
+        "geolocation"
+      ],
+      "source_files": [
+        "olist_geolocation_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_geolocation_dataset.csv": "b514f6fc991b9566aeba02aa5d67e2c3630f034b60a0e05aa0d082a3b66d88d6"
+      },
+      "rows_in": 738332,
+      "rows_out": 720154,
+      "columns": 8,
+      "schema": {
+        "geolocation_zip_code_prefix": "string",
+        "geolocation_lat": "float64",
+        "geolocation_lng": "float64",
+        "raw_row_count": "int64",
+        "n_full_rows": "int64",
+        "n_city_spellings": "int64",
+        "n_states": "int64",
+        "dq_outside_brazil": "bool"
+      },
+      "missing_values": {
+        "geolocation_zip_code_prefix": 0,
+        "geolocation_lat": 0,
+        "geolocation_lng": 0,
+        "raw_row_count": 0,
+        "n_full_rows": 0,
+        "n_city_spellings": 0,
+        "n_states": 0,
+        "dq_outside_brazil": 0
+      },
+      "transformations": [
+        "one row per distinct (zip, lat, lng), built from geolocation_rows",
+        "raw_row_count = sum of occurrence_count; n_full_rows, n_city_spellings, n_states",
+        "dq_outside_brazil: lat outside [-33.75, 5.27] or lng outside [-73.99, -34.79]",
+        "no ZIP centroid computed (deferred)"
+      ]
+    },
+    {
+      "output_dataset": "products_metadata_flags",
+      "kind": "derived",
+      "path": "data/staging/products_metadata_flags.parquet",
+      "source_datasets": [
+        "products"
+      ],
+      "source_files": [
+        "olist_products_dataset.csv"
+      ],
+      "source_sha256": {
+        "olist_products_dataset.csv": "3e6569628a17fbc75fd206ee357b59e20364b9afa90f5b6cd5b4d624c58aa9cc"
+      },
+      "rows_in": 32951,
+      "rows_out": 32951,
+      "columns": 12,
+      "schema": {
+        "product_id": "string",
+        "dq_missing_category": "bool",
+        "dq_missing_name_length": "bool",
+        "dq_missing_description_length": "bool",
+        "dq_missing_photos_qty": "bool",
+        "dq_missing_weight_g": "bool",
+        "dq_missing_length_cm": "bool",
+        "dq_missing_height_cm": "bool",
+        "dq_missing_width_cm": "bool",
+        "dq_listing_metadata_missing": "bool",
+        "dq_physical_attributes_missing": "bool",
+        "dq_all_attributes_missing": "bool"
+      },
+      "missing_values": {
+        "product_id": 0,
+        "dq_missing_category": 0,
+        "dq_missing_name_length": 0,
+        "dq_missing_description_length": 0,
+        "dq_missing_photos_qty": 0,
+        "dq_missing_weight_g": 0,
+        "dq_missing_length_cm": 0,
+        "dq_missing_height_cm": 0,
+        "dq_missing_width_cm": 0,
+        "dq_listing_metadata_missing": 0,
+        "dq_physical_attributes_missing": 0,
+        "dq_all_attributes_missing": 0
+      },
+      "transformations": [
+        "8 field-level flags (value missing) and 3 row-level flags (all fields of the group missing), as defined in strategy section 4.3"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "check_id": "V01",
+      "check_class": "blocking",
+      "description": "raw files unchanged during ingestion (SHA-256 before = after); baseline verified",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "V02.customers",
+      "check_class": "blocking",
+      "description": "customers: staged rows = ingested rows",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V03.customers",
+      "check_class": "blocking",
+      "description": "customers: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.customers",
+      "check_class": "blocking",
+      "description": "customers: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.customers",
+      "check_class": "blocking",
+      "description": "customers: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.customers",
+      "check_class": "blocking",
+      "description": "customers: primary key ('customer_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: staged rows = ingested rows",
+      "expected": 1000163,
+      "observed": 1000163,
+      "passed": true
+    },
+    {
+      "check_id": "V03.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V02.orders",
+      "check_class": "blocking",
+      "description": "orders: staged rows = ingested rows",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "V03.orders",
+      "check_class": "blocking",
+      "description": "orders: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.orders",
+      "check_class": "blocking",
+      "description": "orders: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.orders",
+      "check_class": "blocking",
+      "description": "orders: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.orders",
+      "check_class": "blocking",
+      "description": "orders: primary key ('order_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.order_items",
+      "check_class": "blocking",
+      "description": "order_items: staged rows = ingested rows",
+      "expected": 112650,
+      "observed": 112650,
+      "passed": true
+    },
+    {
+      "check_id": "V03.order_items",
+      "check_class": "blocking",
+      "description": "order_items: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.order_items",
+      "check_class": "blocking",
+      "description": "order_items: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.order_items",
+      "check_class": "blocking",
+      "description": "order_items: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.order_items",
+      "check_class": "blocking",
+      "description": "order_items: primary key ('order_id', 'order_item_id') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.payments",
+      "check_class": "blocking",
+      "description": "payments: staged rows = ingested rows",
+      "expected": 103886,
+      "observed": 103886,
+      "passed": true
+    },
+    {
+      "check_id": "V03.payments",
+      "check_class": "blocking",
+      "description": "payments: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.payments",
+      "check_class": "blocking",
+      "description": "payments: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.payments",
+      "check_class": "blocking",
+      "description": "payments: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.payments",
+      "check_class": "blocking",
+      "description": "payments: primary key ('order_id', 'payment_sequential') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.reviews",
+      "check_class": "blocking",
+      "description": "reviews: staged rows = ingested rows",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "V03.reviews",
+      "check_class": "blocking",
+      "description": "reviews: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.reviews",
+      "check_class": "blocking",
+      "description": "reviews: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.reviews",
+      "check_class": "blocking",
+      "description": "reviews: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.reviews",
+      "check_class": "blocking",
+      "description": "reviews: primary key ('review_id', 'order_id') unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.products",
+      "check_class": "blocking",
+      "description": "products: staged rows = ingested rows",
+      "expected": 32951,
+      "observed": 32951,
+      "passed": true
+    },
+    {
+      "check_id": "V03.products",
+      "check_class": "blocking",
+      "description": "products: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.products",
+      "check_class": "blocking",
+      "description": "products: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.products",
+      "check_class": "blocking",
+      "description": "products: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.products",
+      "check_class": "blocking",
+      "description": "products: primary key ('product_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.sellers",
+      "check_class": "blocking",
+      "description": "sellers: staged rows = ingested rows",
+      "expected": 3095,
+      "observed": 3095,
+      "passed": true
+    },
+    {
+      "check_id": "V03.sellers",
+      "check_class": "blocking",
+      "description": "sellers: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.sellers",
+      "check_class": "blocking",
+      "description": "sellers: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.sellers",
+      "check_class": "blocking",
+      "description": "sellers: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.sellers",
+      "check_class": "blocking",
+      "description": "sellers: primary key ('seller_id',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.translation",
+      "check_class": "blocking",
+      "description": "translation: staged rows = ingested rows",
+      "expected": 71,
+      "observed": 71,
+      "passed": true
+    },
+    {
+      "check_id": "V03.translation",
+      "check_class": "blocking",
+      "description": "translation: staged columns and dtypes match the staging schema",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V08.translation",
+      "check_class": "blocking",
+      "description": "translation: missing count per column unchanged",
+      "expected": {},
+      "observed": {},
+      "passed": true
+    },
+    {
+      "check_id": "V14.translation",
+      "check_class": "blocking",
+      "description": "translation: every value unchanged (dates re-formatted with the parse format equal the raw text)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "check_id": "V04.translation",
+      "check_class": "blocking",
+      "description": "translation: primary key ('product_category_name',) unique and non-null",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V07.orders",
+      "check_class": "blocking",
+      "description": "orders: 0 date values failed to parse",
+      "expected": {
+        "order_purchase_timestamp": 0,
+        "order_approved_at": 0,
+        "order_delivered_carrier_date": 0,
+        "order_delivered_customer_date": 0,
+        "order_estimated_delivery_date": 0
+      },
+      "observed": {
+        "order_purchase_timestamp": 0,
+        "order_approved_at": 0,
+        "order_delivered_carrier_date": 0,
+        "order_delivered_customer_date": 0,
+        "order_estimated_delivery_date": 0
+      },
+      "passed": true
+    },
+    {
+      "check_id": "V07.order_items",
+      "check_class": "blocking",
+      "description": "order_items: 0 date values failed to parse",
+      "expected": {
+        "shipping_limit_date": 0
+      },
+      "observed": {
+        "shipping_limit_date": 0
+      },
+      "passed": true
+    },
+    {
+      "check_id": "V07.reviews",
+      "check_class": "blocking",
+      "description": "reviews: 0 date values failed to parse",
+      "expected": {
+        "review_creation_date": 0,
+        "review_answer_timestamp": 0
+      },
+      "observed": {
+        "review_creation_date": 0,
+        "review_answer_timestamp": 0
+      },
+      "passed": true
+    },
+    {
+      "check_id": "V06.customers",
+      "check_class": "blocking",
+      "description": "customers.customer_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V06.sellers",
+      "check_class": "blocking",
+      "description": "sellers.seller_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V06.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation.geolocation_zip_code_prefix: all values are 5-digit strings",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.orders.customer_id",
+      "check_class": "blocking",
+      "description": "orders.customer_id -> customers.customer_id: no orphans",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.order_items.order_id",
+      "check_class": "blocking",
+      "description": "order_items.order_id -> orders.order_id: no orphans",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.payments.order_id",
+      "check_class": "blocking",
+      "description": "payments.order_id -> orders.order_id: no orphans",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.reviews.order_id",
+      "check_class": "blocking",
+      "description": "reviews.order_id -> orders.order_id: no orphans",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.order_items.product_id",
+      "check_class": "blocking",
+      "description": "order_items.product_id -> products.product_id: no orphans",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V05.order_items.seller_id",
+      "check_class": "blocking",
+      "description": "order_items.seller_id -> sellers.seller_id: no orphans",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V12.rows_sum",
+      "check_class": "blocking",
+      "description": "geolocation_rows: sum(occurrence_count) = geolocation rows",
+      "expected": 1000163,
+      "observed": 1000163,
+      "passed": true
+    },
+    {
+      "check_id": "V12.points_sum",
+      "check_class": "blocking",
+      "description": "geolocation_points: sum(raw_row_count) = geolocation rows",
+      "expected": 1000163,
+      "observed": 1000163,
+      "passed": true
+    },
+    {
+      "check_id": "V12.rows_unique",
+      "check_class": "blocking",
+      "description": "geolocation_rows: no duplicate full rows",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V12.points_unique",
+      "check_class": "blocking",
+      "description": "geolocation_points: no duplicate (zip, lat, lng)",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    },
+    {
+      "check_id": "V12.points_from_rows",
+      "check_class": "blocking",
+      "description": "geolocation_points: sum(n_full_rows) = geolocation_rows rows",
+      "expected": 738332,
+      "observed": 738332,
+      "passed": true
+    },
+    {
+      "check_id": "V12.zip_format",
+      "check_class": "blocking",
+      "description": "geolocation_rows / points: zip prefixes are 5-digit strings",
+      "expected": [
+        0,
+        0
+      ],
+      "observed": [
+        0,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "V02.products_metadata_flags",
+      "check_class": "blocking",
+      "description": "products_metadata_flags: one row per product, same order",
+      "expected": true,
+      "observed": true,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.customers",
+      "check_class": "regression",
+      "description": "customers: row count (NB01)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.geolocation",
+      "check_class": "regression",
+      "description": "geolocation: row count (NB01)",
+      "expected": 1000163,
+      "observed": 1000163,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.orders",
+      "check_class": "regression",
+      "description": "orders: row count (NB01)",
+      "expected": 99441,
+      "observed": 99441,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.order_items",
+      "check_class": "regression",
+      "description": "order_items: row count (NB01)",
+      "expected": 112650,
+      "observed": 112650,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.payments",
+      "check_class": "regression",
+      "description": "payments: row count (NB01)",
+      "expected": 103886,
+      "observed": 103886,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.reviews",
+      "check_class": "regression",
+      "description": "reviews: row count (NB01)",
+      "expected": 99224,
+      "observed": 99224,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.products",
+      "check_class": "regression",
+      "description": "products: row count (NB01)",
+      "expected": 32951,
+      "observed": 32951,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.sellers",
+      "check_class": "regression",
+      "description": "sellers: row count (NB01)",
+      "expected": 3095,
+      "observed": 3095,
+      "passed": true
+    },
+    {
+      "check_id": "R.rows.translation",
+      "check_class": "regression",
+      "description": "translation: row count (NB01)",
+      "expected": 71,
+      "observed": 71,
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.orders.order_purchase_timestamp",
+      "check_class": "regression",
+      "description": "orders.order_purchase_timestamp: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        99441,
+        "2016-09-04 21:15:19",
+        "2018-10-17 17:30:18"
+      ],
+      "observed": [
+        99441,
+        "2016-09-04 21:15:19",
+        "2018-10-17 17:30:18"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.orders.order_approved_at",
+      "check_class": "regression",
+      "description": "orders.order_approved_at: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        99281,
+        "2016-09-15 12:16:38",
+        "2018-09-03 17:40:06"
+      ],
+      "observed": [
+        99281,
+        "2016-09-15 12:16:38",
+        "2018-09-03 17:40:06"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.orders.order_delivered_carrier_date",
+      "check_class": "regression",
+      "description": "orders.order_delivered_carrier_date: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        97658,
+        "2016-10-08 10:34:01",
+        "2018-09-11 19:48:28"
+      ],
+      "observed": [
+        97658,
+        "2016-10-08 10:34:01",
+        "2018-09-11 19:48:28"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.orders.order_delivered_customer_date",
+      "check_class": "regression",
+      "description": "orders.order_delivered_customer_date: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        96476,
+        "2016-10-11 13:46:32",
+        "2018-10-17 13:22:46"
+      ],
+      "observed": [
+        96476,
+        "2016-10-11 13:46:32",
+        "2018-10-17 13:22:46"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.orders.order_estimated_delivery_date",
+      "check_class": "regression",
+      "description": "orders.order_estimated_delivery_date: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        99441,
+        "2016-09-30 00:00:00",
+        "2018-11-12 00:00:00"
+      ],
+      "observed": [
+        99441,
+        "2016-09-30 00:00:00",
+        "2018-11-12 00:00:00"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.order_items.shipping_limit_date",
+      "check_class": "regression",
+      "description": "order_items.shipping_limit_date: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        112650,
+        "2016-09-19 00:15:34",
+        "2020-04-09 22:35:08"
+      ],
+      "observed": [
+        112650,
+        "2016-09-19 00:15:34",
+        "2020-04-09 22:35:08"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.reviews.review_creation_date",
+      "check_class": "regression",
+      "description": "reviews.review_creation_date: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        99224,
+        "2016-10-02 00:00:00",
+        "2018-08-31 00:00:00"
+      ],
+      "observed": [
+        99224,
+        "2016-10-02 00:00:00",
+        "2018-08-31 00:00:00"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.dates.reviews.review_answer_timestamp",
+      "check_class": "regression",
+      "description": "reviews.review_answer_timestamp: non-missing, min, max (NB03 4.1)",
+      "expected": [
+        99224,
+        "2016-10-07 18:32:28",
+        "2018-10-29 12:27:35"
+      ],
+      "observed": [
+        99224,
+        "2016-10-07 18:32:28",
+        "2018-10-29 12:27:35"
+      ],
+      "passed": true
+    },
+    {
+      "check_id": "R.zip_leading_zero.customers",
+      "check_class": "regression",
+      "description": "customers: zip prefixes starting with '0' (NB03 4.3)",
+      "expected": 23995,
+      "observed": 23995,
+      "passed": true
+    },
+    {
+      "check_id": "R.zip_leading_zero.sellers",
+      "check_class": "regression",
+      "description": "sellers: zip prefixes starting with '0' (NB03 4.3)",
+      "expected": 1027,
+      "observed": 1027,
+      "passed": true
+    },
+    {
+      "check_id": "R.zip_leading_zero.geolocation",
+      "check_class": "regression",
+      "description": "geolocation: zip prefixes starting with '0' (NB03 4.3)",
+      "expected": 245733,
+      "observed": 245733,
+      "passed": true
+    },
+    {
+      "check_id": "R.total.order_items.price",
+      "check_class": "regression",
+      "description": "order_items.price: sum (NB02/NB03)",
+      "expected": 13591643.7,
+      "observed": 13591643.7,
+      "passed": true
+    },
+    {
+      "check_id": "R.total.order_items.freight_value",
+      "check_class": "regression",
+      "description": "order_items.freight_value: sum (NB02/NB03)",
+      "expected": 2251909.54,
+      "observed": 2251909.54,
+      "passed": true
+    },
+    {
+      "check_id": "R.total.payments.payment_value",
+      "check_class": "regression",
+      "description": "payments.payment_value: sum (NB02/NB03)",
+      "expected": 16008872.12,
+      "observed": 16008872.12,
+      "passed": true
+    },
+    {
+      "check_id": "R.untranslated_products",
+      "check_class": "regression",
+      "description": "products with a category absent from translation (NB02 3.2)",
+      "expected": 13,
+      "observed": 13,
+      "passed": true
+    },
+    {
+      "check_id": "R.geolocation_rows",
+      "check_class": "regression",
+      "description": "geolocation_rows: distinct full rows (NB02 2.2)",
+      "expected": 738332,
+      "observed": 738332,
+      "passed": true
+    },
+    {
+      "check_id": "R.geolocation_points",
+      "check_class": "regression",
+      "description": "geolocation_points: distinct (zip, lat, lng) (NB02 5.3)",
+      "expected": 720154,
+      "observed": 720154,
+      "passed": true
+    },
+    {
+      "check_id": "R.geolocation_zips",
+      "check_class": "regression",
+      "description": "distinct zip prefixes in geolocation (NB02 5.3)",
+      "expected": 19015,
+      "observed": 19015,
+      "passed": true
+    },
+    {
+      "check_id": "R.geolocation_outside_rows",
+      "check_class": "regression",
+      "description": "raw rows represented by points outside Brazil (NB03 6.5)",
+      "expected": 42,
+      "observed": 42,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_category",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_category count (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_name_length",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_name_length count (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_description_length",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_description_length count (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_photos_qty",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_photos_qty count (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_weight_g",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_weight_g count (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_length_cm",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_length_cm count (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_height_cm",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_height_cm count (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_missing_width_cm",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_missing_width_cm count (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_listing_metadata_missing",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_listing_metadata_missing count (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_physical_attributes_missing",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_physical_attributes_missing count (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag.dq_all_attributes_missing",
+      "check_class": "regression",
+      "description": "products_metadata_flags.dq_all_attributes_missing count (strategy 4.3)",
+      "expected": 1,
+      "observed": 1,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag_equivalence.listing",
+      "check_class": "regression",
+      "description": "listing fields: products with ANY missing = products with ALL missing (strategy 4.3)",
+      "expected": 610,
+      "observed": 610,
+      "passed": true
+    },
+    {
+      "check_id": "R.flag_equivalence.physical",
+      "check_class": "regression",
+      "description": "physical fields: products with ANY missing = products with ALL missing (strategy 4.3)",
+      "expected": 2,
+      "observed": 2,
+      "passed": true
+    },
+    {
+      "check_id": "W02",
+      "check_class": "warning",
+      "description": "distinct (zip, lat, lng) points flagged outside Brazil (not measured in NB01-03)",
+      "expected": null,
+      "observed": 33,
+      "passed": null
+    },
+    {
+      "check_id": "W.geo_points_multi_city",
+      "check_class": "warning",
+      "description": "points carried by more than one city spelling (explains part of the 18,178 gap)",
+      "expected": null,
+      "observed": 18133,
+      "passed": null
+    },
+    {
+      "check_id": "W.geo_points_multi_state",
+      "check_class": "warning",
+      "description": "points carried by more than one state",
+      "expected": null,
+      "observed": 2,
+      "passed": null
+    },
+    {
+      "check_id": "P01.customers",
+      "check_class": "blocking",
+      "description": "customers: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.geolocation",
+      "check_class": "blocking",
+      "description": "geolocation: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.orders",
+      "check_class": "blocking",
+      "description": "orders: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.order_items",
+      "check_class": "blocking",
+      "description": "order_items: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.payments",
+      "check_class": "blocking",
+      "description": "payments: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.reviews",
+      "check_class": "blocking",
+      "description": "reviews: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.products",
+      "check_class": "blocking",
+      "description": "products: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.sellers",
+      "check_class": "blocking",
+      "description": "sellers: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.translation",
+      "check_class": "blocking",
+      "description": "translation: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.geolocation_rows",
+      "check_class": "blocking",
+      "description": "geolocation_rows: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.geolocation_points",
+      "check_class": "blocking",
+      "description": "geolocation_points: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    },
+    {
+      "check_id": "P01.products_metadata_flags",
+      "check_class": "blocking",
+      "description": "products_metadata_flags: Parquet read-back identical (values and dtypes)",
+      "expected": null,
+      "observed": null,
+      "passed": true
+    }
+  ]
+}

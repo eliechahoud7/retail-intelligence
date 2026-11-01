@@ -8,11 +8,13 @@ Analytics project on the Olist Brazilian E-Commerce dataset (9 CSV files).
 retail-intelligence/
 ├── data/
 │   ├── raw/            # 9 original Olist CSVs — read-only, never modified
-│   └── processed/      # pipeline outputs (staging / clean / analytical) — later tasks
+│   ├── staging/        # Task 4.2 — typed Parquet copies + derived structures (not versioned)
+│   └── processed/      # later layers (clean / analytical)
 ├── notebooks/          # 01 inventory · 02 relationships · 03 data quality
 ├── reports/            # data_preparation_strategy.md, ingestion reports
 ├── src/
-│   └── ingestion/      # Task 4.1 — raw data ingestion layer
+│   ├── ingestion/      # Task 4.1 — raw data ingestion layer
+│   └── staging/        # Task 4.2 — staging layer (Parquet)
 ├── tests/              # automated tests (unittest)
 ├── dashboards/
 ├── models/
@@ -77,6 +79,62 @@ result = ingest()                      # raises an IngestionError subclass on an
 orders = result.frames["orders"]
 profiles = profile_result(result)
 ```
+
+## Staging layer (Task 4.2)
+
+The staging layer converts the nine ingested datasets into typed Parquet files with **the same rows and the same values**. It also builds three derived structures approved in the preparation strategy. Ingestion is reused, not duplicated: staging calls `src.ingestion.ingest()`.
+
+### Run
+
+```powershell
+.venv\Scripts\python.exe -m src.ingestion      # optional: inspect raw data first
+.venv\Scripts\python.exe -m src.staging
+```
+
+| Option | Purpose |
+|---|---|
+| `--out-dir PATH` | Parquet output directory (default `data/staging`) |
+| `--report-dir PATH` | Report directory (default `reports/staging`) |
+| `--raw-dir PATH` | Raw CSV directory (default `data/raw`) |
+| `--skip-baseline-check` | Skip the baseline checksum and regression checks. Intended for test fixtures only |
+
+Exit code `0` means every blocking and regression check passed and all outputs were written and verified. Exit code `1` means a failure. If a check fails before writing, **no Parquet files are written**, but the report is still produced.
+
+### Outputs (`data/staging/`)
+
+| File | Rows | Content |
+|---|---:|---|
+| `customers`, `geolocation`, `orders`, `order_items`, `payments`, `reviews`, `products`, `sellers`, `translation` `.parquet` | same as raw | Typed 1:1 copies of the raw files |
+| `geolocation_rows.parquet` | 738,332 | One row per distinct full geolocation row, with `occurrence_count` |
+| `geolocation_points.parquet` | 720,154 | One row per distinct (zip, lat, lng), with `raw_row_count`, `n_full_rows`, `n_city_spellings`, `n_states`, `dq_outside_brazil`. No centroids |
+| `products_metadata_flags.parquet` | 32,951 | `product_id` plus 8 field-level and 3 row-level missingness flags (strategy 4.3) |
+
+Each Parquet file carries lineage in its metadata: run ID, git commit, source file and its SHA-256, row counts, transformations and column renames. Read it with `src.staging.read_lineage(path)`.
+
+### Transformations (strategy references)
+
+- **Dates (D-03):** the 8 date/time columns are parsed with the explicit format `%Y-%m-%d %H:%M:%S` and stay timezone-naive. Any value that fails to parse is counted, and a non-zero count blocks the run.
+- **Renames (D-05):** `product_name_lenght` → `product_name_length` and `product_description_lenght` → `product_description_length`. No other column is renamed.
+- **Categories (3.3):** `order_status`, `payment_type` and the three `*_state` columns become `category`.
+- **Unchanged:** zip prefixes stay 5-character strings and identifiers stay strings. Missing values are preserved, with nothing filled or dropped.
+
+### Not in staging
+
+These are deferred because the strategy places them elsewhere:
+- ZIP centroids (`zip_lookup`);
+- standardised `city_key` columns;
+- order-item quantity aggregation (D-15, analytical layer);
+- all other `dq_*` flags (clean layer).
+
+### Report
+
+`reports/staging/staging_report.md` and `staging_report.json` list, for every output:
+- source dataset, file and SHA-256;
+- input and output row counts;
+- schema and missing values per column;
+- the transformations applied.
+
+They also record every check result (blocking, regression and warning), the execution timestamp and the git commit hash.
 
 ## Tests
 
