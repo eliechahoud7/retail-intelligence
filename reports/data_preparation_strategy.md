@@ -705,7 +705,15 @@ Once a warning value has been reviewed and approved, it may be promoted to a reg
 
 ### 11.5 Validation outputs
 
-Each run writes a machine-readable validation report (check ID, class, expected, observed, pass/fail or logged value) to `reports/validation/`. A failed blocking or regression check stops the run before any analytical output is written. Warning values are recorded in every run.
+Each run writes its validation results to the report directory of its own layer, `reports/<layer>/`:
+
+| Layer | Report files |
+|---|---|
+| Staging | `reports/staging/staging_report.json`, `staging_report.md` |
+| Clean | `reports/clean/clean_report.json`, `clean_report.md` |
+| Analytical | `reports/analytical/` (same convention) |
+
+The JSON file is the machine-readable record, with check ID, class, expected value, observed value, and pass/fail or logged value for every check. The Markdown file presents the same content for review. The report is written on every run, including failed runs. A failed blocking or regression check stops the run before any output of that layer is written. Warning values are recorded in every run.
 
 ---
 
