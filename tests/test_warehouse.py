@@ -211,5 +211,88 @@ class WarehouseDatabaseTests(unittest.TestCase):
         self.assertEqual(left, 0)
 
 
+@unittest.skipUnless(DB, "PostgreSQL connection not configured or not reachable")
+class WarehouseVerificationScopeTests(unittest.TestCase):
+    """verify_warehouse checks the warehouse schema; the analytics schema only for existence and owner."""
+
+    def setUp(self):
+        from src.database import get_engine
+        self.engine = get_engine()
+        tag = uuid.uuid4().hex[:8]
+        self.w, self.a = f"test_wh_{tag}", f"test_an_{tag}"
+        wh.create_warehouse(self.engine, self.w, self.a)
+
+    def tearDown(self):
+        with self.engine.begin() as conn:
+            for s in (self.w, self.a):
+                conn.execute(text(f'DROP SCHEMA IF EXISTS "{s}" CASCADE'))
+        self.engine.dispose()
+
+    def problems(self, **kw):
+        return wh.verify_warehouse(self.engine, kw.get("w", self.w), kw.get("a", self.a))["problems"]
+
+    def test_empty_analytics_schema_passes(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_analytics_schema_with_the_views_passes(self):
+        from src.database import views
+        views.create_views(self.engine, self.w, self.a)
+        result = wh.verify_warehouse(self.engine, self.w, self.a)
+        self.assertTrue(result["ok"], result["problems"])
+        self.assertEqual(result["summary"]["analytics_relations"], len(views.view_names()))
+
+    def test_wrong_owner_or_missing_analytics_schema_fails(self):
+        # "public" exists but is owned by pg_database_owner, not by the application role
+        self.assertTrue(any("schema public: owner" in p for p in self.problems(a="public")))
+        self.assertTrue(any("owner None" in p for p in self.problems(a=f"{self.a}_missing")))
+
+    def test_missing_warehouse_objects_still_fail(self):
+        with self.engine.begin() as conn:
+            conn.execute(text(f'DROP INDEX "{self.w}".ix_fact_orders_purchase_date'))
+        self.assertTrue(any("fact_orders: indexes" in p for p in self.problems()))
+        with self.engine.begin() as conn:
+            conn.execute(text(f'DROP TABLE "{self.w}".fact_reviews'))
+        self.assertIn("table fact_reviews: missing", self.problems())
+
+
+class CliErrorHandlingTests(unittest.TestCase):
+    """A psycopg error (raised by SQL on the raw connection) gives a clean message and exit code 1."""
+
+    def run_cli(self, argv, patch_target, error):
+        import contextlib
+        import io
+
+        import psycopg
+
+        from src.database import __main__ as cli
+        from src.database.connection import Settings
+        settings = Settings(host="localhost", port=5432, user="retail_app", password="NOT-A-REAL-SECRET",
+                            database="retail_intelligence", admin_user="postgres", admin_password="ALSO-NOT-REAL")
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(cli, "load_settings", return_value=settings), \
+                mock.patch.object(cli, patch_target, side_effect=error(psycopg)), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_psycopg_error_from_create_views_is_reported_cleanly(self):
+        code, out, err = self.run_cli(["create-views"], "create_views",
+                                      lambda pg: pg.errors.UndefinedColumn('column "no_such_column" does not exist\nLINE 1'))
+        self.assertEqual(code, 1)
+        self.assertEqual(err.strip(), 'DATABASE ERROR: UndefinedColumn: column "no_such_column" does not exist')
+        self.assertNotIn("Traceback", err)
+        for secret in ("NOT-A-REAL-SECRET", "ALSO-NOT-REAL"):
+            self.assertNotIn(secret, out + err)
+
+    def test_psycopg_error_from_load_warehouse_is_reported_cleanly(self):
+        with mock.patch("src.database.__main__.locate_gold") as locate:
+            locate.return_value.run_id, locate.return_value.git = "r", {}
+            locate.return_value.row_counts, locate.return_value.frames = {"t": 1}, {"t": None}
+            code, _, err = self.run_cli(["load-warehouse"], "load_warehouse",
+                                        lambda pg: pg.errors.ForeignKeyViolation("insert violates foreign key"))
+        self.assertEqual(code, 1)
+        self.assertTrue(err.startswith("DATABASE ERROR: ForeignKeyViolation: insert violates foreign key"))
+
+
 if __name__ == "__main__":
     unittest.main()

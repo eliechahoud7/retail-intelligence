@@ -228,10 +228,10 @@ def verify_warehouse(engine: Engine | None = None, warehouse_schema: str = WAREH
             for s in (warehouse_schema, analytics_schema):
                 if owners.get(s) != user:
                     problems.append(f"schema {s}: owner {owners.get(s)!r}, expected {user!r}")
+            # analytics must exist and be owned by the application role (checked above); its contents
+            # (the analytics views) are validated by src.database.views.verify_views, not here.
             n_analytics = conn.execute(text("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
                                             "WHERE n.nspname = :a"), {"a": analytics_schema}).scalar()
-            if n_analytics:
-                problems.append(f"schema {analytics_schema}: expected empty, has {n_analytics} relation(s)")
             cat = _catalog(conn, warehouse_schema)
             table_owner = dict(conn.execute(text("SELECT tablename, tableowner FROM pg_tables WHERE schemaname = :s"),
                                             {"s": warehouse_schema}).all())

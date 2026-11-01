@@ -10,6 +10,7 @@ import sys
 
 from pathlib import Path
 
+import psycopg
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.analytical.pipeline import DEFAULT_ANALYTICAL_DIR
@@ -21,7 +22,19 @@ from .loader import GoldSourceError, LoadValidationError, load_warehouse, locate
 
 from .connection import (DatabaseConfigError, check_connection, ensure_app_role, ensure_database, load_settings,
                          role_report)
+from .views import create_views, verify_views
 from .warehouse import WAREHOUSE_SCHEMA, create_warehouse, verify_warehouse
+
+
+def _print_views(r: dict) -> int:
+    for v, n in r["rows"].items():
+        print(f"  analytics.{v:22} {n:>8,} rows")
+    for c in r["checks"]:
+        print(f"  {'ok  ' if c['ok'] else 'FAIL'} {c['check']}")
+    for p in r["problems"]:
+        print(f"  PROBLEM: {p}")
+    print(f"  VIEWS: {'OK' if r['ok'] else 'FAILED'}")
+    return 0 if r["ok"] else 1
 
 
 def _print_validation(v: dict) -> None:
@@ -46,14 +59,17 @@ def _print_verification(result: dict) -> int:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m src.database", description="PostgreSQL connection utilities.")
     p.add_argument("command", choices=["check", "create-db", "setup-app-role", "show-role", "create-warehouse",
-                                       "verify-warehouse", "load-warehouse", "validate-load"],
+                                       "verify-warehouse", "load-warehouse", "validate-load", "create-views",
+                                       "verify-views"],
                    help="check: connect and report version/database/user; create-db: create POSTGRES_DB if missing "
                         "(admin); setup-app-role: create/update the application role and grants (admin); "
                         "show-role: application role attributes and privileges (admin); create-warehouse: create "
                         "the warehouse/analytics schemas and missing tables as the application role, then verify; "
                         "verify-warehouse: compare the database with the approved design; load-warehouse: "
                         "atomically refresh the warehouse from the Gold Parquet outputs, then re-validate; "
-                        "validate-load: compare the warehouse contents with Gold")
+                        "validate-load: compare the warehouse contents with Gold; create-views: create or "
+                        "replace the analytics views, then verify; verify-views: check that the views exist, "
+                        "execute and reconcile with the warehouse tables")
     p.add_argument("--expect-empty", action="store_true",
                    help="create-warehouse / verify-warehouse: also require every warehouse table to be empty")
     p.add_argument("--gold-dir", type=Path, default=DEFAULT_ANALYTICAL_DIR, help="Gold Parquet directory")
@@ -78,6 +94,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"tables created: {created['tables_created'] or 'none (already present)'}")
             print("verification:")
             return _print_verification(verify_warehouse(expect_empty=args.expect_empty))
+        if args.command in ("create-views", "verify-views"):
+            print(f"target: {settings.safe_url()}")
+            if args.command == "create-views":
+                print(f"views created or replaced (one transaction): {', '.join(create_views())}")
+            return _print_views(verify_views())
         if args.command in ("load-warehouse", "validate-load"):
             print(f"target: {settings.safe_url()}")
             gold = locate_gold(args.gold_dir, args.manifest_dir)
@@ -114,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     except (GoldSourceError, LoadValidationError) as exc:
         print(f"LOAD FAILED (nothing committed): {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
-    except SQLAlchemyError as exc:
+    except (SQLAlchemyError, psycopg.Error) as exc:  # psycopg.Error: SQL run on the raw connection (COPY, views)
         orig = getattr(exc, "orig", None) or exc
         print(f"DATABASE ERROR: {type(orig).__name__}: {str(orig).strip().splitlines()[0]}", file=sys.stderr)
         return 1
