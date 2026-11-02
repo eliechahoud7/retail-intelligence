@@ -12,3 +12,4 @@ pyarrow
 openpyxl
 sqlalchemy
 psycopg[binary]
+shap==0.54.1

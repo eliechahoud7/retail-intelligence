@@ -14,7 +14,7 @@ retail-intelligence/
 │       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
 │       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
 │       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
-├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics · 08–09 machine learning · 10 forecasting
+├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics · 08–09 machine learning · 10 forecasting · 11 explainability
 ├── reports/            # data_preparation_strategy.md, ingestion / staging / clean / analytical reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
@@ -371,6 +371,17 @@ Results, methodology and limitations: `reports/machine_learning/machine_learning
 - **Result:** Holt-Winters is best on test (WAPE 0.214, 6.9% better than the seasonal naive). The validation winner, HistGradientBoosting, didn't generalise.
 
 Methodology, results and limitations: `reports/forecasting/forecasting_report.md`.
+
+## Explainable AI (Phase 12)
+
+`notebooks/11_model_explainability.ipynb` explains the two Phase 10 delivery models with **SHAP** (`shap==0.54.1`):
+- **Models:** the Phase 10 models weren't saved, so they're rebuilt from their recorded configurations. Before explaining, the notebook verifies that they reproduce the recorded test results (random forest MAE 4.365; logistic regression PR-AUC 0.0883, ROC-AUC 0.7032).
+- **Explainers:** TreeSHAP for the delivery-time random forest; LinearSHAP for the late-risk logistic regression, with a development-data background (never test data).
+- **Checks:** additivity (base value + contributions = prediction) and a comparison with the Phase 10 permutation importance.
+- **Explanations:** global (beeswarm, dependence plots) and local (waterfalls for fast and slow deliveries, and for true and false positives and negatives) on a reproducible 1,000-order test sample.
+- **Key findings:** both models reason mainly through route and promise (same state, promised days, distance, region). A false positive is driven by an out-of-range freight value. Attributions describe the model, not causal effects.
+
+Methodology, results and limitations: `reports/explainability/explainability_report.md`.
 
 ## Tests
 

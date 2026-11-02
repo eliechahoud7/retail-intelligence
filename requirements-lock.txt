@@ -102,7 +102,9 @@ scikit-learn==1.9.1
 scipy==1.18.1
 seaborn==0.13.2
 Send2Trash==2.1.0
+shap==0.54.1
 six==1.17.0
+slicer==0.0.8
 soupsieve==3.0.4
 SQLAlchemy==2.1.6
 stack-data==0.6.3
@@ -111,6 +113,7 @@ terminado==0.18.1
 threadpoolctl==3.7.0
 tinycss2==1.5.1
 tornado==6.6
+tqdm==4.70.1
 traitlets==5.16.1
 typing_extensions==4.16.0
 tzdata==2026.6
