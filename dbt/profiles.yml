@@ -1,0 +1,20 @@
+# dbt connection profile. Contains NO credentials: every value comes from the environment, which
+# the wrapper (python -m src.database dbt ...) fills from .env / the process environment for the
+# dbt child process only. The password is passed as DBT_ENV_SECRET_POSTGRES_PASSWORD, which dbt
+# scrubs from its logs. dbt always connects as the application role (POSTGRES_USER), never admin.
+
+retail_intelligence:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST') }}"
+      port: "{{ env_var('POSTGRES_PORT') | as_number }}"
+      user: "{{ env_var('POSTGRES_USER') }}"
+      password: "{{ env_var('DBT_ENV_SECRET_POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('POSTGRES_DB') }}"
+      # Fallback schema for nodes without a layer schema; generate_schema_name only accepts the
+      # three dbt schemas, so nothing can be built anywhere else.
+      schema: dbt_staging
+      threads: 4
+      connect_timeout: "{{ env_var('POSTGRES_CONNECT_TIMEOUT', '10') | as_number }}"

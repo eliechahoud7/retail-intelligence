@@ -1,0 +1,41 @@
+# dbt project for Retail Intelligence (Task 5.4 - dbt Analytics Engineering).
+#
+# dbt READS the existing PostgreSQL objects (warehouse tables, analytics views) as sources and
+# builds its own models ONLY in the three dbt schemas below. The Python pipeline keeps owning the
+# `warehouse` and `analytics` schemas; macros/generate_schema_name.sql refuses both.
+#
+# Run through the project wrapper (loads .env, uses the application role, never writes secrets):
+#   .venv\Scripts\python.exe -m src.database dbt debug
+
+name: retail_intelligence
+version: "1.0.0"
+config-version: 2
+profile: retail_intelligence
+require-dbt-version: [">=1.12.0", "<2.0.0"]
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+clean-targets: ["target"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+vars:
+  # Schemas of the existing objects that dbt reads as sources (never writes)
+  warehouse_schema: warehouse
+  analytics_schema: analytics
+
+# One schema per layer (exact names; see macros/generate_schema_name.sql). The full-refresh Gold
+# load (W-13) means no model needs to be incremental.
+models:
+  retail_intelligence:
+    staging:
+      +schema: dbt_staging
+      +materialized: view
+    intermediate:
+      +schema: dbt_intermediate
+      +materialized: view
+    marts:
+      +schema: dbt_marts
+      +materialized: table

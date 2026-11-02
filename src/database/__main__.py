@@ -1,6 +1,7 @@
-"""``python -m src.database {check,create-db,setup-app-role,show-role}`` (run from the project root).
+"""``python -m src.database {check,create-db,setup-app-role,show-role,...}`` (run from the project root).
 
-Never prints a password.
+``python -m src.database dbt <dbt arguments>`` passes everything after ``dbt`` to the dbt CLI of
+``.venv-dbt`` (see ``dbt_runner``). Never prints a password.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from src.clean.pipeline import DEFAULT_MANIFEST_DIR
 
 from .compare import validate_loaded
 from .connection import get_engine
+from .dbt_runner import run_dbt
 from .loader import GoldSourceError, LoadValidationError, load_warehouse, locate_gold
 
 from .connection import (DatabaseConfigError, check_connection, ensure_app_role, ensure_database, load_settings,
@@ -59,7 +61,17 @@ def _print_verification(result: dict) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="python -m src.database", description="PostgreSQL connection utilities.")
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["dbt"]:  # pass-through: dbt parses its own arguments
+        try:
+            return run_dbt(argv[1:])
+        except DatabaseConfigError as exc:  # includes DbtNotInstalledError
+            print(f"CONFIG ERROR: {exc}", file=sys.stderr)
+            return 1
+    p = argparse.ArgumentParser(prog="python -m src.database", description="PostgreSQL connection utilities.",
+                                epilog="dbt: 'python -m src.database dbt <dbt arguments>' runs the dbt CLI of "
+                                       ".venv-dbt on dbt/ as the application role; 'dbt' must be the FIRST "
+                                       "argument and everything after it goes to dbt (e.g. 'dbt debug').")
     p.add_argument("command", choices=["check", "create-db", "setup-app-role", "show-role", "create-warehouse",
                                        "verify-warehouse", "load-warehouse", "validate-load", "create-views",
                                        "verify-views", "run-query", "verify-queries"],
@@ -82,6 +94,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--gold-dir", type=Path, default=DEFAULT_ANALYTICAL_DIR, help="Gold Parquet directory")
     p.add_argument("--manifest-dir", type=Path, default=DEFAULT_MANIFEST_DIR, help="run manifest directory")
     p.add_argument("--admin", action="store_true", help="check: connect with the administrative login instead")
+    value_options = {"--name", "--limit", "--param", "--gold-dir", "--manifest-dir"}
+    if any(a == "dbt" and argv[i - 1] not in value_options for i, a in enumerate(argv) if i > 0):
+        p.error("'dbt' must be the first argument: python -m src.database dbt <dbt arguments> "
+                "(options before it are not supported; nothing was run)")
     args = p.parse_args(argv)
     try:
         settings = load_settings()

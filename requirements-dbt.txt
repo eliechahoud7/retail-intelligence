@@ -1,0 +1,10 @@
+# dbt toolchain for Task 5.4 (dbt Analytics Engineering).
+# Installed into its OWN virtual environment, never into .venv, so the project's data stack
+# (pandas, SQLAlchemy, psycopg 3) and its tests are unaffected:
+#
+#   py -3.12 -m venv .venv-dbt
+#   .venv-dbt\Scripts\python.exe -m pip install -r requirements-dbt-lock.txt
+#
+# Direct dependencies, pinned exactly. requirements-dbt-lock.txt pins the full resolved set.
+dbt-core==1.12.6
+dbt-postgres==1.11.0

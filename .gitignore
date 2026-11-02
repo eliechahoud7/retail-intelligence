@@ -2,6 +2,15 @@
 __pycache__/
 .ipynb_checkpoints/
 
+# dbt (Task 5.4): its separate environment and everything dbt generates. dbt/profiles.yml IS
+# versioned: it holds no credentials, only env_var() references filled in by the wrapper.
+.venv-dbt/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/package-lock.yml
+dbt/.user.yml
+
 # Data is not versioned: raw files are third-party source data (verified by the SHA-256
 # checksums in src/ingestion/schema.py); processed files are reproducible pipeline outputs.
 data/raw/*
