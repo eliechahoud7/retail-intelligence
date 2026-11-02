@@ -1,0 +1,247 @@
+# Staging models (Task 5.4, Milestone 3): one thin view per warehouse source, in dbt_staging.
+#
+# Contract of every stg_ model: same grain, same rows, same columns (names, order, PostgreSQL types
+# incl. numeric(12,2) / timestamp(0)) as its source. No filter, rename, cast, derived column, join or
+# business rule - the Gold build (src/analytical) owns all of that and is not repeated here.
+# Downstream models select from stg_ models instead of the sources.
+#
+# Tests (all read-only SELECTs):
+#   * matches_source_columns - column contract (name, position, exact type) against the source;
+#   * matches_source_rows    - multiset row equality with the source (EXCEPT ALL both ways): nothing
+#                              filtered, dropped, duplicated or changed; implies equal row counts;
+#   * primary keys (unique + not_null; composite keys and the D-15 grain via
+#     unique_combination_of_columns) - the staging-layer keys downstream models rely on;
+#   * relationships between staging models for the foreign keys later layers join on. The other
+#     Gold foreign keys are tested on the sources; matches_source_rows carries them over unchanged,
+#     so repeating them here would add no information.
+
+version: 2
+
+models:
+
+  # ---------------------------------------------------------------- facts
+  - name: stg_fact_order_lines
+    description: >
+      Staging view of `warehouse.fact_order_lines`. **Grain: one order line** (D-15 six-attribute
+      grain); primary key `order_line_id`. Item-based measures only - never combine `line_price_total`
+      / `freight_total` with payment amounts (Q-03), and do not join payments or reviews to lines
+      (they are per order; no seller attribution).
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'fact_order_lines')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'fact_order_lines')"}
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, product_id, seller_id, unit_price, freight_value_per_row,
+                                     shipping_limit_date]
+    columns:
+      - name: order_line_id
+        description: "Primary key: `order_id:first_order_item_id`."
+        data_tests: [unique, not_null]
+      - name: order_id
+        description: '{{ doc("col_order_id") }}'
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('stg_fact_orders')", field: order_id}
+      - name: product_id
+        description: '{{ doc("col_product_id") }}'
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('stg_dim_products')", field: product_id}
+      - name: seller_id
+        description: '{{ doc("col_seller_id") }}'
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('stg_dim_sellers')", field: seller_id}
+      - name: quantity
+        description: Identical item rows collapsed into the line (1-20).
+      - name: line_price_total
+        description: Item-based sales of the line (`unit_price * quantity`). Not payment revenue (Q-03).
+      - name: freight_total
+        description: Sum of `freight_value` over the line's rows (D-15 / Q-17).
+      - name: customer_unique_id
+        description: '{{ doc("col_customer_unique_id") }}'
+      - name: purchase_date
+        description: '{{ doc("col_purchase_date") }}'
+      - name: in_candidate_window
+        description: '{{ doc("col_in_candidate_window") }}'
+
+  - name: stg_fact_orders
+    description: >
+      Staging view of `warehouse.fact_orders`. **Grain: one order**; primary key `order_id`,
+      `customer_id` unique (D-01). Carries the Gold delivery inputs unchanged: `order_status`,
+      `order_delivered_customer_date`, the D-08 guarded durations and `is_late` - delivery metrics
+      must use the D-06 population (status `delivered` with a delivery date) exactly as the
+      `analytics.delivery_*` views do. `items_*` and `payment_*` are separate measures (Q-03);
+      `review_count` is the only order-level review attribute (Q-04).
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'fact_orders')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'fact_orders')"}
+    columns:
+      - name: order_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: Per-order customer key (one-to-one with the order, D-01).
+        data_tests: [unique, not_null]
+      - name: customer_unique_id
+        description: '{{ doc("col_customer_unique_id") }}'
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('stg_dim_customers')", field: customer_unique_id}
+      - name: order_status
+        description: '{{ doc("col_order_status") }}'
+      - name: order_delivered_customer_date
+        description: Delivery to the customer; NULL for 2,965 orders. Part of the D-06 delivery eligibility.
+      - name: purchase_date
+        description: Calendar day of the purchase. FK to `stg_dim_dates.date`.
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('stg_dim_dates')", field: date}
+      - name: in_candidate_window
+        description: '{{ doc("col_in_candidate_window") }}'
+      - name: items_price_total
+        description: Item-based order value; NULL without items (Q-16). Not payment revenue (Q-03).
+      - name: payment_total
+        description: Payment-based order value; NULL without payment. Not item revenue (Q-03).
+      - name: payment_minus_items
+        description: Reconciliation diagnostic (payment minus items + freight, 2 dp); not a revenue measure.
+      - name: review_count
+        description: Review-order links of the order; there is no order-level score (Q-04).
+      - name: is_late
+        description: Delivered after the estimate at day level; NULL where the delivery date is missing.
+
+  - name: stg_fact_payments
+    description: >
+      Staging view of `warehouse.fact_payments`. **Grain: one payment transaction**; composite primary
+      key (`order_id`, `payment_sequential`). Payment-based only (Q-03); payments belong to an order and
+      are never attributed to sellers or products.
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'fact_payments')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'fact_payments')"}
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, payment_sequential]
+    columns:
+      - name: order_id
+        description: Primary-key part. FK to `stg_fact_orders.order_id`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('stg_fact_orders')", field: order_id}
+      - name: payment_sequential
+        description: Primary-key part.
+        data_tests: [not_null]
+      - name: payment_value
+        description: Amount of the transaction (`numeric(12,2)`).
+      - name: payment_installments
+        description: Instalments; a recorded 0 is kept (D-16).
+
+  - name: stg_fact_reviews
+    description: >
+      Staging view of `warehouse.fact_reviews`. **Grain: one review-order link**; composite primary key
+      (`review_id`, `order_id`) - `review_id` alone is not unique (D-07). No order-level review score
+      (Q-04); reviews are never attributed to sellers.
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'fact_reviews')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'fact_reviews')"}
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [review_id, order_id]
+    columns:
+      - name: review_id
+        description: Primary-key part; not unique on its own.
+        data_tests: [not_null]
+      - name: order_id
+        description: Primary-key part. FK to `stg_fact_orders.order_id`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('stg_fact_orders')", field: order_id}
+      - name: review_score
+        description: Score of this review-order link (1-5). Do not aggregate to an order-level score.
+
+  # ---------------------------------------------------------------- dimensions
+  - name: stg_dim_customers
+    description: >
+      Staging view of `warehouse.dim_customers`. **Grain: one person** (`customer_unique_id`).
+      Full-history measures - descriptive only, not prediction features (target leakage).
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'dim_customers')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'dim_customers')"}
+    columns:
+      - name: customer_unique_id
+        description: Primary key - the person.
+        data_tests: [unique, not_null]
+
+  - name: stg_dim_products
+    description: >
+      Staging view of `warehouse.dim_products`. **Grain: one product**. Category labels and quality
+      flags exactly as in Gold (D-12, Q-05, Q-06); missing metadata stays NULL (D-06).
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'dim_products')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'dim_products')"}
+    columns:
+      - name: product_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: category_reporting
+        description: '{{ doc("col_category_reporting") }}'
+
+  - name: stg_dim_sellers
+    description: >
+      Staging view of `warehouse.dim_sellers`. **Grain: one seller**. Seller measures downstream are
+      item-based only (no payment, review or delivery attribution).
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'dim_sellers')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'dim_sellers')"}
+    columns:
+      - name: seller_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+
+  - name: stg_dim_dates
+    description: >
+      Staging view of `warehouse.dim_dates`. **Grain: one calendar day** (2016-09-04 to 2020-04-09,
+      contiguous). `in_candidate_window` is the Q-11 flag, unchanged.
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'dim_dates')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'dim_dates')"}
+    columns:
+      - name: date
+        description: Primary key; calendar day.
+        data_tests: [unique, not_null]
+      - name: in_candidate_window
+        description: Day's month is inside the Q-11 candidate window (2017-01 to 2018-08).
+
+  # ---------------------------------------------------------------- lineage
+  - name: stg_load_run
+    description: >
+      Staging view of `warehouse.load_run`. **Grain: one committed warehouse load** (lineage, Q1). The
+      latest row by `finished_at` identifies the Gold run currently in the warehouse.
+    data_tests:
+      - matches_source_columns:
+          arguments: {source_relation: "source('warehouse', 'load_run')"}
+      - matches_source_rows:
+          arguments: {source_relation: "source('warehouse', 'load_run')"}
+    columns:
+      - name: load_id
+        description: Primary key of the load.
+        data_tests: [unique, not_null]
+      - name: gold_run_id
+        description: Gold (analytical) run that was loaded.

@@ -50,6 +50,35 @@ foreign keys, view grains) restate what PostgreSQL and `verify-views` already en
 read-only SELECTs. No source freshness is configured (closed historical extract; reloads have no
 schedule). Browse the documentation with `... dbt docs generate` then `... dbt docs serve`.
 
+## Staging
+
+`models/staging/` holds one thin model per warehouse source, materialised as a **view** in schema
+**`dbt_staging`** (configured in `dbt_project.yml`):
+
+| Model | Source |
+|---|---|
+| `stg_dim_customers` | `warehouse.dim_customers` |
+| `stg_dim_dates` | `warehouse.dim_dates` |
+| `stg_dim_products` | `warehouse.dim_products` |
+| `stg_dim_sellers` | `warehouse.dim_sellers` |
+| `stg_fact_orders` | `warehouse.fact_orders` |
+| `stg_fact_order_lines` | `warehouse.fact_order_lines` |
+| `stg_fact_payments` | `warehouse.fact_payments` |
+| `stg_fact_reviews` | `warehouse.fact_reviews` |
+| `stg_load_run` | `warehouse.load_run` |
+
+Each model selects every source column **explicitly** (no `SELECT *`), in source order, with the
+same names and types, and applies no filter, join, cast or business rule - the grain, keys and rows
+are the source's. Downstream models read `stg_` models, not the sources. This is enforced by two
+generic tests on every model (`tests/generic/`):
+
+- `matches_source_columns` - same column names, order and exact PostgreSQL types as the source;
+- `matches_source_rows` - same multiset of rows as the source (`EXCEPT ALL` both ways): nothing
+  filtered, duplicated or changed.
+
+Plus primary-key, composite-grain and seven foreign-key relationship tests
+(`models/staging/_staging__models.yml`). Run with `... dbt build --select staging`.
+
 ## Rules
 
 - Never create, replace or delete objects in `warehouse` or `analytics`.
