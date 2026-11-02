@@ -1,0 +1,99 @@
+# Review analytics marts: tables in dbt_marts, built from stg_fact_reviews (and stg_fact_orders for
+# the delivery class). Review grain rules (Q-04 / D-07): counts at review-order-link level or by
+# distinct review_id; no order-level review score; reviews are never attributed to sellers.
+
+version: 2
+
+models:
+  - name: mart_review_scores_by_delivery
+    description: >
+      **Grain: one delivery_class x review_score**, for every combination with at least one review
+      link. Review score distribution by how the reviewed order was delivered relative to its
+      estimate. `delivery_class` follows the approved delivery query: for D-06 eligible orders
+      (status `delivered` with a delivery date) by `delivery_vs_estimate_days` (day level) - `early`
+      (< 0), `on_estimated_day` (= 0), `late` (> 0); reviews of all other orders are kept as
+      `not_delivery_eligible`. {{ doc("rule_reviews_grain") }} `n_reviews` is not additive across
+      delivery classes (a shared review can belong to orders in different classes).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [delivery_class, review_score]
+      - expression_is_true:
+          arguments:
+            expression: "review_score between 1 and 5"
+      - expression_is_true:
+          arguments:
+            expression: "n_reviews between 1 and n_review_links and n_reviews <= class_n_reviews"
+    columns:
+      - name: delivery_class
+        description: "`early`, `on_estimated_day`, `late` (D-06 eligible orders) or `not_delivery_eligible`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [early, on_estimated_day, late, not_delivery_eligible]
+      - name: review_score
+        description: Score (1-5) of the review-order link, as recorded.
+        data_tests: [not_null]
+      - name: n_review_links
+        description: Review-order links (rows of fact_reviews). Additive across all rows.
+        data_tests: [not_null]
+      - name: n_reviews
+        description: Distinct review_id. Additive across the scores of one class, not across classes.
+        data_tests: [not_null]
+      - name: class_n_reviews
+        description: Distinct review_id of the delivery class - the denominator of review_share_pct.
+        data_tests: [not_null]
+      - name: review_share_pct
+        description: 100 * n_reviews / class_n_reviews, 4 dp. The scores of a class add up to 100 within rounding.
+        data_tests: [not_null]
+
+  - name: mart_reviews_monthly
+    description: >
+      **Grain: one review creation month** (`YYYY-MM` of `review_creation_date`), for every month with
+      at least one review. Review volume, score distribution, comment rate and answer time. Review-level
+      measures count each distinct `review_id` once (its score, timestamps and comment flags are the
+      same on every link). {{ doc("rule_reviews_grain") }} No candidate-window flag: Q-11 is defined on
+      the purchase month, not the review month.
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: >
+              n_reviews = n_reviews_score_1 + n_reviews_score_2 + n_reviews_score_3
+                          + n_reviews_score_4 + n_reviews_score_5
+              and n_reviews between 1 and n_review_links
+              and n_reviews_with_comment <= n_reviews
+      - expression_is_true:
+          arguments:
+            expression: "comment_rate_pct between 0 and 100 and avg_answer_hours >= 0 and median_answer_hours >= 0"
+    columns:
+      - name: review_creation_month
+        description: Month of review creation (`dim_dates.year_month` of `review_creation_date`).
+        data_tests: [unique, not_null]
+      - name: n_review_links
+        description: Review-order links created in the month.
+        data_tests: [not_null]
+      - name: n_reviews
+        description: Distinct reviews created in the month.
+        data_tests: [not_null]
+      - name: n_reviews_score_1
+        description: Distinct reviews with score 1.
+      - name: n_reviews_score_2
+        description: Distinct reviews with score 2.
+      - name: n_reviews_score_3
+        description: Distinct reviews with score 3.
+      - name: n_reviews_score_4
+        description: Distinct reviews with score 4.
+      - name: n_reviews_score_5
+        description: Distinct reviews with score 5.
+      - name: n_reviews_with_comment
+        description: Distinct reviews with a comment message (`has_comment_message`).
+      - name: comment_rate_pct
+        description: 100 * n_reviews_with_comment / n_reviews, 4 dp.
+        data_tests: [not_null]
+      - name: avg_answer_hours
+        description: Mean hours from review creation to answer, per distinct review, 2 dp.
+        data_tests: [not_null]
+      - name: median_answer_hours
+        description: Median hours from review creation to answer, per distinct review, 2 dp.
+        data_tests: [not_null]

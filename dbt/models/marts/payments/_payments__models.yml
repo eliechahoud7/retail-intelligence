@@ -1,0 +1,145 @@
+# Payment analytics marts (Task 5.4, Milestone 4): tables in dbt_marts, built from stg_fact_payments.
+#
+# Business rules (reports/data_preparation_strategy.md, src/analytical/schema.py DECISIONS):
+#   * payment-based amounts only; never combined with item-based revenue (Q-03); never attributed to
+#     sellers or products; order lines are not used;
+#   * every payment transaction is kept, incl. zero-value payments (dq_payment_zero, 9) and zero-
+#     instalment credit-card payments (dq_installments_zero, 2; D-16 / Q-07);
+#   * instalment statistics exclude zero-instalment rows (D-16); average-ticket statistics exclude
+#     zero-value rows (strategy section 7: "exclude from average-ticket statistics");
+#   * Q-11 candidate window is a flag, not a filter.
+# Not tested with accepted_values: payment_type is an observed vocabulary, not a business rule (W-09).
+# Monetary values >= 0 are tested: Q-18 expects 0 negative values and says the run stops for review
+# if any appear.
+
+version: 2
+
+models:
+  - name: mart_payment_methods_monthly
+    description: >
+      **Grain: one purchase month x payment type** (`purchase_year_month`, `payment_type`), for every
+      combination with at least one payment transaction. Payment-method mix over time from
+      `stg_fact_payments`: transaction counts, distinct orders, payment value and its share of the
+      month, and average instalments. Payment-based only - {{ doc("rule_revenue_separation") }}
+      `n_orders` is **not additive** across payment types or months (an order can have several
+      payment rows and types); `n_transactions` and `payment_value_total` are additive.
+      {{ doc("rule_candidate_window") }}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [purchase_year_month, payment_type]
+      - expression_is_true:
+          arguments:
+            expression: "n_orders between 1 and n_transactions"
+      - expression_is_true:
+          arguments:
+            expression: "payment_value_total >= 0 and payment_value_total <= month_payment_value_total"
+      - expression_is_true:
+          arguments:
+            expression: "payment_value_share_pct between 0 and 100"
+      - expression_is_true:
+          arguments:
+            expression: "n_zero_installment_transactions <= n_transactions and n_zero_value_transactions <= n_transactions"
+    columns:
+      - name: purchase_year_month
+        description: Purchase month `YYYY-MM` of the payment's order (`dim_dates.year_month` of `purchase_date`).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('stg_dim_dates')", field: year_month}
+      - name: payment_type
+        description: Payment method as recorded (e.g. `credit_card`, `boleto`, `voucher`, `debit_card`, `not_defined`).
+        data_tests: [not_null]
+      - name: in_candidate_window
+        description: '{{ doc("col_in_candidate_window") }} Constant within a month.'
+        data_tests: [not_null]
+      - name: n_transactions
+        description: Payment transactions (rows of `fact_payments`). Additive.
+        data_tests: [not_null]
+      - name: n_orders
+        description: >
+          Distinct orders with at least one payment of this type in the month. Not additive across
+          payment types or months; always <= n_transactions.
+        data_tests: [not_null]
+      - name: payment_value_total
+        description: Sum of `payment_value` (all transactions, incl. zero-value ones), `numeric(14,2)`. Additive.
+        data_tests: [not_null]
+      - name: month_payment_value_total
+        description: Payment value of the whole month over all payment types - the denominator of the share.
+        data_tests: [not_null]
+      - name: payment_value_share_pct
+        description: >
+          100 * payment_value_total / month_payment_value_total, rounded to 4 dp (`numeric(7,4)`).
+          NULL instead of a division error if a month's total were 0 (none is). The shares of a month
+          add up to 100 within rounding.
+      - name: avg_installments
+        description: >
+          Mean recorded instalment count over the transactions with `dq_installments_zero = false`
+          (D-16), 2 dp. NULL when the group has no such transaction.
+      - name: n_zero_installment_transactions
+        description: Transactions recorded with 0 instalments (D-16), kept in all counts and totals, excluded from avg_installments.
+        data_tests: [not_null]
+      - name: n_zero_value_transactions
+        description: Transactions with `payment_value = 0` (`dq_payment_zero`), kept in all counts and totals.
+        data_tests: [not_null]
+
+  - name: mart_payment_installments
+    description: >
+      **Grain: one payment type x recorded instalment count** (`payment_type`,
+      `payment_installments`), for every combination with at least one payment transaction.
+      Instalment distribution by payment method from `stg_fact_payments`. Instalment counts are
+      kept exactly as recorded: the zero-instalment credit-card payments are their own row
+      (`is_zero_installments`; D-16 - no substitute value). Zero-value payments stay in every count
+      and total and are marked. `n_orders` is **not additive** across rows. Payment-based only -
+      {{ doc("rule_revenue_separation") }}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [payment_type, payment_installments]
+      - expression_is_true:
+          arguments:
+            expression: "n_orders between 1 and n_transactions"
+      - expression_is_true:
+          arguments:
+            expression: "payment_value_total >= 0"
+      - expression_is_true:
+          arguments:
+            expression: "payment_installments >= 0"
+      - expression_is_true:
+          arguments:
+            expression: "is_zero_installments = (payment_installments = 0)"
+      - expression_is_true:
+          arguments:
+            expression: "has_zero_value_transactions = (n_zero_value_transactions > 0) and n_zero_value_transactions <= n_transactions"
+      - expression_is_true:
+          arguments:
+            expression: "(avg_payment_value is null) = (n_zero_value_transactions = n_transactions)"
+    columns:
+      - name: payment_type
+        description: Payment method as recorded.
+        data_tests: [not_null]
+      - name: payment_installments
+        description: Recorded instalment count (0 kept as recorded, D-16; non-credit-card payments have 1).
+        data_tests: [not_null]
+      - name: is_zero_installments
+        description: True for the row of payments recorded with 0 instalments (Gold flag `dq_installments_zero`, D-16 / Q-07).
+        data_tests: [not_null]
+      - name: n_transactions
+        description: Payment transactions. Additive.
+        data_tests: [not_null]
+      - name: n_orders
+        description: Distinct orders in the row. Not additive across rows (an order can have several payment rows).
+        data_tests: [not_null]
+      - name: payment_value_total
+        description: Sum of `payment_value` (incl. zero-value transactions), `numeric(14,2)`. Additive.
+        data_tests: [not_null]
+      - name: avg_payment_value
+        description: >
+          Mean `payment_value` over the transactions with `payment_value > 0` (zero values are excluded
+          from average-ticket statistics), 2 dp. NULL when the row has only zero-value transactions.
+      - name: has_zero_value_transactions
+        description: The row contains at least one zero-value transaction (`dq_payment_zero`).
+        data_tests: [not_null]
+      - name: n_zero_value_transactions
+        description: Zero-value transactions in the row; kept in n_transactions and payment_value_total.
+        data_tests: [not_null]

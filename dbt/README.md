@@ -9,7 +9,7 @@ sources.
 |---|---|---|
 | `warehouse`, `analytics` | Python pipeline | read only (protected in `macros/generate_schema_name.sql`) |
 | `dbt_staging` | dbt | views |
-| `dbt_intermediate` | dbt | views |
+| `dbt_intermediate` | dbt | views (reserved; no intermediate models yet) |
 | `dbt_marts` | dbt | tables (full rebuild; the Gold load is a full refresh, W-13) |
 
 ## Setup (once)
@@ -27,6 +27,7 @@ Always through the wrapper, from the project root:
 
 ```
 .venv\Scripts\python.exe -m src.database dbt debug
+.venv\Scripts\python.exe -m src.database dbt build      # all models + all tests
 .venv\Scripts\python.exe -m src.database dbt <any dbt arguments>
 ```
 
@@ -78,6 +79,48 @@ generic tests on every model (`tests/generic/`):
 
 Plus primary-key, composite-grain and seven foreign-key relationship tests
 (`models/staging/_staging__models.yml`). Run with `... dbt build --select staging`.
+
+## Payment marts
+
+`models/marts/payments/`, tables in `dbt_marts`, built from `stg_fact_payments` - payment-based only,
+no order lines (run with `... dbt build --select marts.payments`):
+
+| Model | Grain | Contents |
+|---|---|---|
+| `mart_payment_methods_monthly` | purchase month x payment type | transactions, distinct orders, payment value, share of the month's value, average instalments, Q-11 flag |
+| `mart_payment_installments` | payment type x instalment count | transactions, distinct orders, payment value, average payment value, zero-instalment / zero-value indicators |
+
+Every transaction is kept: the 2 zero-instalment credit-card payments (D-16) and the 9 zero-value
+payments stay in all counts and totals; average instalments exclude the zero-instalment rows (D-16)
+and average payment value excludes zero-value rows (average-ticket rule). `n_orders` is not additive
+across rows. Singular tests in `tests/marts/payments/` reconcile both marts with `stg_fact_payments`
+and check the monthly shares.
+
+## Review marts
+
+`models/marts/reviews/`, tables in `dbt_marts`, built from `stg_fact_reviews` (run with
+`... dbt build --select marts.reviews`):
+
+| Model | Grain | Contents |
+|---|---|---|
+| `mart_review_scores_by_delivery` | delivery_class x review_score | review links, distinct reviews, score share within the class |
+| `mart_reviews_monthly` | review creation month | links, distinct reviews, reviews per score 1-5, comment rate, mean / median answer hours |
+
+`delivery_class` reuses the approved delivery-query rule: D-06 eligible orders by
+`delivery_vs_estimate_days` (`early` < 0, `on_estimated_day` = 0, `late` > 0); reviews of other
+orders are kept as `not_delivery_eligible`. Reviews stay at their own grain (Q-04 / D-07): links and
+distinct `review_id`, never an order-level score. Singular tests in `tests/marts/reviews/` reconcile
+both marts with `stg_fact_reviews`.
+
+## Customer cohort mart
+
+`models/marts/customers/mart_customer_cohorts` (table in `dbt_marts`; `... dbt build --select
+mart_customer_cohorts`). **Grain: cohort month x months since first purchase**, every month up to the
+last purchase month (no-activity months are 0). Person level (`customer_unique_id`, D-01): the cohort
+is Gold `dim_customers.cohort_month`; a person is active in a month with any order, so month 0 is
+100 %. Columns: cohort size, active customers, retention %, orders and item-based sales from the
+order-level `items_price_total` of `stg_fact_orders` - no join to lines or payments, so no fan-out.
+`tests/marts/customers/` reconciles orders, item sales and persons with the staging models.
 
 ## Rules
 

@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: mart_customer_cohorts
+    description: >
+      **Grain: one cohort month x months since first purchase**, for every month from the cohort month
+      to the last purchase month (no-activity months are 0). Person-level retention (D-01: a customer
+      is `customer_unique_id`): `cohort_month` is Gold `dim_customers.cohort_month` (first purchase,
+      all orders); a person is active in a month with at least one order of any status, so month 0 is
+      100 %. Built from order-grain `stg_fact_orders` only - no join to order lines or payments, so no
+      fan-out; `items_price_total` is item-based (Q-03), never combined with payments.
+      {{ doc("rule_full_history") }} {{ doc("rule_candidate_window") }}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [cohort_month, months_since_first_purchase]
+      - expression_is_true:
+          arguments:
+            expression: >
+              months_since_first_purchase >= 0
+              and active_customers between 0 and cohort_size
+              and n_orders >= active_customers
+              and items_price_total >= 0
+              and retention_pct between 0 and 100
+      - expression_is_true:
+          arguments:
+            expression: "months_since_first_purchase <> 0 or (active_customers = cohort_size and retention_pct = 100)"
+    columns:
+      - name: cohort_month
+        description: Month (`YYYY-MM`) of the person's first purchase (Gold `dim_customers.cohort_month`).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('stg_dim_dates')", field: year_month}
+      - name: months_since_first_purchase
+        description: Calendar months between cohort_month and activity_month (0 = the cohort month).
+        data_tests: [not_null]
+      - name: activity_month
+        description: The calendar month the activity is counted in (`YYYY-MM` of the order purchase).
+        data_tests: [not_null]
+      - name: cohort_in_candidate_window
+        description: The cohort month is inside the Q-11 candidate window (flag, not a filter).
+        data_tests: [not_null]
+      - name: activity_in_candidate_window
+        description: The activity month is inside the Q-11 candidate window (2018-09 / 2018-10 are near-empty).
+        data_tests: [not_null]
+      - name: cohort_size
+        description: Persons whose first purchase is in cohort_month.
+        data_tests: [not_null]
+      - name: active_customers
+        description: Distinct persons of the cohort with at least one order in activity_month.
+        data_tests: [not_null]
+      - name: retention_pct
+        description: 100 * active_customers / cohort_size, 4 dp.
+        data_tests: [not_null]
+      - name: n_orders
+        description: Orders (all statuses) of the cohort purchased in activity_month.
+        data_tests: [not_null]
+      - name: items_price_total
+        description: Item-based sales (sum of order-level `items_price_total`) of those orders, `numeric(14,2)`; 0 without items.
+        data_tests: [not_null]
