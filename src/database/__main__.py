@@ -10,6 +10,7 @@ import sys
 
 from pathlib import Path
 
+import pandas as pd
 import psycopg
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -22,6 +23,7 @@ from .loader import GoldSourceError, LoadValidationError, load_warehouse, locate
 
 from .connection import (DatabaseConfigError, check_connection, ensure_app_role, ensure_database, load_settings,
                          role_report)
+from .queries import QueryParameterError, UnknownQueryError, get_query, run_query, verify_queries
 from .views import create_views, verify_views
 from .warehouse import WAREHOUSE_SCHEMA, create_warehouse, verify_warehouse
 
@@ -60,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m src.database", description="PostgreSQL connection utilities.")
     p.add_argument("command", choices=["check", "create-db", "setup-app-role", "show-role", "create-warehouse",
                                        "verify-warehouse", "load-warehouse", "validate-load", "create-views",
-                                       "verify-views"],
+                                       "verify-views", "run-query", "verify-queries"],
                    help="check: connect and report version/database/user; create-db: create POSTGRES_DB if missing "
                         "(admin); setup-app-role: create/update the application role and grants (admin); "
                         "show-role: application role attributes and privileges (admin); create-warehouse: create "
@@ -69,7 +71,12 @@ def main(argv: list[str] | None = None) -> int:
                         "atomically refresh the warehouse from the Gold Parquet outputs, then re-validate; "
                         "validate-load: compare the warehouse contents with Gold; create-views: create or "
                         "replace the analytics views, then verify; verify-views: check that the views exist, "
-                        "execute and reconcile with the warehouse tables")
+                        "execute and reconcile with the warehouse tables; run-query: run one analytical query "
+                        "read-only (--name); verify-queries: execute and validate all analytical queries")
+    p.add_argument("--name", help="run-query: query name (see verify-queries for the list)")
+    p.add_argument("--limit", type=int, default=20, help="run-query: rows to print (default 20)")
+    p.add_argument("--param", action="append", default=[], metavar="NAME=VALUE",
+                   help="run-query: query parameter, repeatable (e.g. --param reference_date=2018-08-29)")
     p.add_argument("--expect-empty", action="store_true",
                    help="create-warehouse / verify-warehouse: also require every warehouse table to be empty")
     p.add_argument("--gold-dir", type=Path, default=DEFAULT_ANALYTICAL_DIR, help="Gold Parquet directory")
@@ -94,6 +101,34 @@ def main(argv: list[str] | None = None) -> int:
             print(f"tables created: {created['tables_created'] or 'none (already present)'}")
             print("verification:")
             return _print_verification(verify_warehouse(expect_empty=args.expect_empty))
+        if args.command == "run-query":
+            if not args.name:
+                print("CONFIG ERROR: run-query needs --name", file=sys.stderr)
+                return 1
+            q = get_query(args.name)
+            params = {}
+            for item in args.param:
+                if "=" not in item:
+                    raise QueryParameterError(f"--param {item!r}: expected NAME=VALUE")
+                key, value = item.split("=", 1)
+                params[key.strip()] = value.strip()
+            bound = q.bind(params)
+            print(f"{q.name} ({q.group}) - grain: {q.grain}" + (f" - params: {bound}" if bound else ""))
+            df = run_query(q.name, params=params)
+            with pd.option_context("display.width", 200, "display.max_columns", 30):
+                print(df.head(args.limit).to_string(index=False))
+            print(f"{len(df):,} rows (showing up to {args.limit})")
+            return 0
+        if args.command == "verify-queries":
+            print(f"target: {settings.safe_url()}")
+            r = verify_queries()
+            for e in r["queries"]:
+                status = "FAIL" if any(p.startswith(e["name"] + ":") for p in r["problems"]) else "ok  "
+                print(f"  {status} {e['group']:<17} {e['name']:<32} rows={e['rows']}  checks={len(e['checks'])}")
+            for p in r["problems"]:
+                print(f"  PROBLEM: {p}")
+            print(f"  QUERIES: {'OK' if r['ok'] else 'FAILED'}")
+            return 0 if r["ok"] else 1
         if args.command in ("create-views", "verify-views"):
             print(f"target: {settings.safe_url()}")
             if args.command == "create-views":
@@ -130,6 +165,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"target: {settings.safe_url(admin=args.admin)}")
         info = check_connection(settings, admin=args.admin)
     except DatabaseConfigError as exc:
+        print(f"CONFIG ERROR: {exc}", file=sys.stderr)
+        return 1
+    except UnknownQueryError as exc:  # run-query with an unknown --name (any other KeyError is a bug: not caught)
+        print(f"CONFIG ERROR: {exc}", file=sys.stderr)
+        return 1
+    except QueryParameterError as exc:
         print(f"CONFIG ERROR: {exc}", file=sys.stderr)
         return 1
     except (GoldSourceError, LoadValidationError) as exc:
