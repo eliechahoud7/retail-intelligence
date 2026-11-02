@@ -14,7 +14,7 @@ retail-intelligence/
 │       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
 │       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
 │       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
-├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference
+├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics
 ├── reports/            # data_preparation_strategy.md, ingestion / staging / clean / analytical reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
@@ -343,6 +343,14 @@ Two notebooks on the Gold tables, run with the project `.venv`:
 ```
 
 Methodology, findings and limitations: `reports/eda/eda_statistics_report.md`.
+
+## Customer analytics (Phase 9)
+
+Two notebooks on the Gold tables, reusing the approved customer SQL queries and the dbt cohort mart (they require the PostgreSQL database):
+- `notebooks/06_customer_behavior_rfm.ipynb`: purchasing behaviour, RFM scores (independently validated against `customer_rfm`), documented RFM segments, and historical CLV.
+- `notebooks/07_customer_segmentation_retention.ipynb`: K-Means segmentation (k chosen by silhouette and Davies–Bouldin), comparison with RFM, cohort retention (validated against `mart_customer_cohorts`), and an inactivity analysis explaining why no churn label is defined.
+
+Methodology, findings, figures and recommendations: `reports/customer_analytics/customer_analytics_report.md`.
 
 ## Tests
 
