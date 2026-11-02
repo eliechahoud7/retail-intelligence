@@ -14,14 +14,15 @@ retail-intelligence/
 │       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
 │       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
 │       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
-├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics
+├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics · 08–09 machine learning
 ├── reports/            # data_preparation_strategy.md, ingestion / staging / clean / analytical reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
 │   ├── staging/        # Task 4.2 — staging layer (Parquet)
 │   ├── clean/          # Task 4.3 — clean layer (Parquet)
 │   ├── analytical/     # Task 4.4 — analytical layer (Parquet star schema)
-│   └── spark/          # Phase 6 — PySpark workloads, benchmark, reconciliation (runs in WSL2)
+│   ├── spark/          # Phase 6 — PySpark workloads, benchmark, reconciliation (runs in WSL2)
+│   └── ml/             # Phase 10 — leakage-checked modelling dataset and preprocessing
 ├── tests/              # automated tests (unittest)
 ├── dashboards/
 ├── models/
@@ -351,6 +352,15 @@ Two notebooks on the Gold tables, reusing the approved customer SQL queries and 
 - `notebooks/07_customer_segmentation_retention.ipynb`: K-Means segmentation (k chosen by silhouette and Davies–Bouldin), comparison with RFM, cohort retention (validated against `mart_customer_cohorts`), and an inactivity analysis explaining why no churn label is defined.
 
 Methodology, findings, figures and recommendations: `reports/customer_analytics/customer_analytics_report.md`.
+
+## Machine learning (Phase 10)
+
+Delivery prediction **at checkout**, using a shared, leakage-checked order-level dataset (`src/ml/delivery_features.py`):
+- **Validation:** a temporal test on the most recent four months (2018-05 to 2018-08), with `TimeSeriesSplit` tuning inside the development period and preprocessing fitted inside scikit-learn pipelines.
+- `notebooks/08_regression_modeling.ipynb`: delivery time in days. It compares baselines (median, Olist's promise), linear regression, a decision tree, a random forest and HistGradientBoosting, adds residual and error analysis, and builds a P95 quantile model that sets a shorter, more reliable promise.
+- `notebooks/09_classification_modeling.ipynb`: late delivery. It compares a baseline, logistic regression, a decision tree, a random forest and HistGradientBoosting, with PR-AUC-based selection, out-of-fold thresholds (a capacity policy), drift-aware evaluation and error analysis.
+
+Results, methodology and limitations: `reports/machine_learning/machine_learning_report.md`.
 
 ## Tests
 
