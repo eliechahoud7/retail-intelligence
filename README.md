@@ -1,71 +1,289 @@
-# Retail Intelligence — Customer, Sales & Demand Analytics
+# Retail Intelligence — End-to-End E-Commerce Analytics Platform
 
-Analytics project on the Olist Brazilian E-Commerce dataset (9 CSV files).
+**From raw marketplace data to a validated warehouse, machine-learning models and executive dashboards.**
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![pandas](https://img.shields.io/badge/pandas-3.1-150458?logo=pandas&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.9-F7931E?logo=scikitlearn&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
+![dbt](https://img.shields.io/badge/dbt-1.12-FF694B?logo=dbt&logoColor=white)
+![Apache Spark](https://img.shields.io/badge/PySpark-4.2-E25A1C?logo=apachespark&logoColor=white)
+![Apache Airflow](https://img.shields.io/badge/Airflow-3.3-017CEE?logo=apacheairflow&logoColor=white)
+![Power BI](https://img.shields.io/badge/Power%20BI-PBIP-F2C811?logo=powerbi&logoColor=black)
+![Tests](https://img.shields.io/badge/tests-unittest%20·%20223%20test%20methods-2EA44F)
+
+Retail Intelligence is an end-to-end analytics project built on the public **Olist Brazilian E-Commerce dataset**: about 100,000 orders placed between 2016 and 2018 across the 9 related tables of a real marketplace. It covers the whole lifecycle:
+- a layered, checksummed and fully traced **data pipeline** (raw → staging → clean → star schema);
+- a **PostgreSQL warehouse** with SQL views and tested **dbt** marts;
+- **PySpark** workloads and **Airflow** orchestration;
+- statistical analysis, **customer analytics**, **machine learning**, **forecasting** and **explainable AI**;
+- five **Power BI** dashboards whose KPIs were validated against the warehouse.
+
+Results are reproduced from code, with fixed seeds, run manifests and idempotent commands. The data-preparation decisions and business rules are documented in [`reports/data_preparation_strategy.md`](reports/data_preparation_strategy.md).
+
+<p align="center">
+  <a href="dashboards/README.md"><img src="dashboards/screenshots/01_executive_overview.png" alt="Executive Overview dashboard" width="900"></a>
+  <br><sub>Executive Overview: one of five Power BI dashboards (<a href="dashboards/README.md">all dashboards</a>)</sub>
+</p>
+
+## Contents
+
+[Key features](#key-features) · [Architecture](#architecture) · [Dataset](#dataset) · [Technology stack](#technology-stack) · [Project phases](#project-phases) · [Results](#results) · [Dashboards](#dashboards) · [Getting started](#getting-started) · [Repository structure](#repository-structure) · [Testing](#testing) · [Limitations](#limitations) · [Future improvements](#future-improvements) · [Acknowledgements and licensing](#acknowledgements-and-licensing) · [Technical reference](#technical-reference)
+
+## Key features
+
+- **Data you can trust:**
+  - SHA-256 checksums on every raw file;
+  - explicit schemas;
+  - a JSON lineage manifest for every run;
+  - blocking validation checks;
+  - row counts and money totals reconciled at each layer.
+- **Fan-out-safe star schema:** every one-to-many table is aggregated before it is joined, and every join is validated. Item revenue and payment value are kept separate by design.
+- **Documented decisions, not silent cleaning:** data-quality issues are flagged (`dq_*` columns), never deleted or imputed. Open business questions (Q-xx) and decisions (D-xx) are recorded and referenced in the code.
+- **Warehouse and analytics engineering:** PostgreSQL star schema, 7 analytics views, 20 parameterised SQL queries and 5 tested dbt marts. The schemas are owned by a least-privilege application role.
+- **Scale-out and orchestration:** PySpark workloads with plan-level optimisation and a pandas-vs-Spark benchmark, plus an idempotent Airflow DAG with retries.
+- **Data science with leakage control:** temporal validation, pipelines fitted on training folds only, honest baselines, and SHAP explanations checked for additivity.
+- **Validated BI:** a Power BI Project (`.pbip`, text-based and version-controlled), with every page KPI, slicer and drill-through cross-checked against PostgreSQL.
 
 ## Architecture
 
-```
-raw CSV ─► staging ─► clean ─► analytical (Gold star schema, Parquet) ─► PostgreSQL warehouse ─► dbt marts ─► Power BI
-            Python layers with checksums, lineage manifests and validation     analytics views
-                                     │
-                                     └─► PySpark workloads · notebooks (EDA, statistics, customer analytics, ML, forecasting, SHAP)
-                       orchestrated end to end by Airflow
+```mermaid
+flowchart LR
+    RAW["Raw CSV<br/>9 Olist files"] --> ING["Ingestion<br/>schema + SHA-256"]
+    ING --> STG["Staging<br/>typed Parquet"]
+    STG --> CLN["Clean<br/>standardised + dq_* flags"]
+    CLN --> GOLD["Analytical (Gold)<br/>star schema, Parquet"]
+    GOLD --> WH[("PostgreSQL<br/>warehouse")]
+    WH --> VIEWS["analytics views<br/>+ SQL queries"]
+    WH --> DBT["dbt marts<br/>(tested)"]
+    WH --> PBI["Power BI<br/>5 dashboards"]
+    DBT --> PBI
+    GOLD --> SPARK["PySpark<br/>workloads"]
+    SPARK -. reconciled with .-> WH
+    GOLD --> NB["Notebooks<br/>EDA · statistics · customers<br/>ML · forecasting · SHAP"]
+    VIEWS --> NB
+    DBT --> NB
+    AF{{"Apache Airflow DAG"}} -. orchestrates .-> ING
 ```
 
-| Phase | Deliverable | Key result |
+- **Python layers:** ingestion, staging, clean and analytical are Python packages under `src/`. Each layer reads only the previous layer's output, refuses to run on stale or changed inputs, and writes Parquet with lineage metadata plus a JSON or Markdown report.
+- **Warehouse:** the Gold star schema is loaded into PostgreSQL as a faithful relational copy. SQL views, approved analytical queries and dbt marts build on it. The customer and forecasting notebooks reuse the queries and marts, and Power BI imports the star schema and the cohort mart. The views also serve as the reference for validating dashboard KPIs.
+- **PySpark:** reruns three workloads on the Gold Parquet files and is reconciled against PostgreSQL.
+- **Airflow:** orchestrates the whole chain: `ingest → staging → clean → analytical → load_warehouse → verify_views → dbt_build → spark_reconcile`, with `spark_jobs` in parallel.
+
+## Dataset
+
+[Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce), published on Kaggle by Olist: orders placed on Brazilian marketplaces, with customers, items, payments, reviews, products, sellers and geolocation.
+
+| File | Rows | Content |
+|---|---:|---|
+| `olist_orders_dataset.csv` | 99,441 | Order status and purchase, approval, carrier, delivery and estimated dates |
+| `olist_order_items_dataset.csv` | 112,650 | Items per order: product, seller, price, freight |
+| `olist_order_payments_dataset.csv` | 103,886 | Payment method, instalments, value |
+| `olist_order_reviews_dataset.csv` | 99,224 | Review score, comments, dates |
+| `olist_customers_dataset.csv` | 99,441 | Customer per order, unique person id, location |
+| `olist_products_dataset.csv` | 32,951 | Category and physical attributes |
+| `olist_sellers_dataset.csv` | 3,095 | Seller location |
+| `olist_geolocation_dataset.csv` | 1,000,163 | Zip-code prefix coordinates |
+| `product_category_name_translation.csv` | 71 | Portuguese → English category names |
+
+- **Period:** purchases from 2016-09-04 to 2018-10-17. The extract becomes incomplete after 2018-08-21, so analyses use the candidate window 2017-01 to 2018-08 as a documented flag, never as a silent filter.
+- **Entities:** 96,096 unique customers (`customer_unique_id`), 32,951 products and 3,095 sellers.
+- **Not in the repository:** the raw data (licence terms and size). Download it from Kaggle into `data/raw/` (see [Getting started](#getting-started)).
+
+## Technology stack
+
+| Area | Tools |
+|---|---|
+| Language and environments | Python 3.12, separate virtual environments per tool (`.venv`, `.venv-dbt`, WSL2 venvs for Spark and Airflow) |
+| Data processing | pandas 3.1, NumPy, PyArrow / Parquet |
+| Database and SQL | PostgreSQL 18, SQLAlchemy 2.1, psycopg 3 |
+| Analytics engineering | dbt-core 1.12 with dbt-postgres |
+| Distributed processing | PySpark 4.2 (Java 17, WSL2) |
+| Orchestration | Apache Airflow 3.3.2 (WSL2) |
+| Statistics and machine learning | SciPy, statsmodels, scikit-learn 1.9, SHAP 0.54 |
+| Visualisation and BI | Matplotlib, seaborn, Plotly, Jupyter; Power BI Desktop (Power BI Project: TMDL model, PBIR report, DAX) |
+| Quality | `unittest` suite, dbt tests, schema and reconciliation checks, run manifests |
+
+Pinned versions: [`requirements-lock.txt`](requirements-lock.txt), [`requirements-dbt-lock.txt`](requirements-dbt-lock.txt), [`requirements-spark.txt`](requirements-spark.txt), [`requirements-airflow.txt`](requirements-airflow.txt).
+
+## Project phases
+
+| Phase | Focus | Main artefacts | Documentation |
+|---|---|---|---|
+| 1–3 | Data understanding: inventory, relationships, data quality; preparation strategy | `notebooks/01–03`, decisions D-xx and questions Q-xx | [`data_preparation_strategy.md`](reports/data_preparation_strategy.md) |
+| 4 | Ingestion → staging → clean → analytical (Gold star schema) | `src/ingestion`, `src/staging`, `src/clean`, `src/analytical` | [`reports/analytical`](reports/analytical/analytical_report.md) |
+| 5 | PostgreSQL warehouse, analytics views, SQL queries, dbt | `src/database`, `dbt/` | [`warehouse_schema_design.md`](reports/database/warehouse_schema_design.md), [`dbt/README.md`](dbt/README.md) |
+| 6 | PySpark workloads, optimisation, benchmark | `src/spark` | [`spark_report.md`](reports/spark/spark_report.md) |
+| 7 | Airflow orchestration | `airflow/dags/retail_pipeline.py` | [Airflow reference](#technical-reference) |
+| 8 | Advanced EDA and statistical inference | `notebooks/04–05` | [`eda_statistics_report.md`](reports/eda/eda_statistics_report.md) |
+| 9 | Customer analytics: RFM, CLV, K-Means, cohorts | `notebooks/06–07` | [`customer_analytics_report.md`](reports/customer_analytics/customer_analytics_report.md) |
+| 10 | Delivery-time regression and late-delivery classification | `notebooks/08–09`, `src/ml` | [`machine_learning_report.md`](reports/machine_learning/machine_learning_report.md) |
+| 11 | Daily order-volume forecasting | `notebooks/10` | [`forecasting_report.md`](reports/forecasting/forecasting_report.md) |
+| 12 | Explainable AI with SHAP | `notebooks/11` | [`explainability_report.md`](reports/explainability/explainability_report.md) |
+| 13 | Power BI dashboards | `dashboards/` | [`dashboards/README.md`](dashboards/README.md) |
+
+## Results
+
+All figures below come from the linked reports and validations.
+
+**Data engineering**
+
+| Result | Evidence |
+|---|---|
+| 99,441 orders, 102,425 order lines, 96,096 persons, reconciled from raw to Gold to PostgreSQL | analytical regression checks; warehouse `validate-load` |
+| 303 orders where payments and items don't reconcile: flagged and kept, never forced to match | `dq_payment_items_mismatch` (Q-03) |
+| Spark results reconciled with PostgreSQL: 6/6 checks, with exact counts and money | [`spark_report.md`](reports/spark/spark_report.md) |
+| Spark optimisations (broadcast joins, removing `Expand`, AQE) roughly halve Spark's time against its defaults. pandas is still faster at every scale tested (up to 30x); the report explains why | [`spark_report.md`](reports/spark/spark_report.md) |
+
+**Business insights**
+
+| Finding | Evidence |
+|---|---|
+| Late delivery is the dominant driver of bad reviews | 1–2 star share 62.3% when late vs 9.2% on time; adjusted OR 9.5 |
+| Growth is volume-driven, not basket-driven | Jan–Aug 2018 vs 2017: orders +135%; monthly AOV stable at 125–152 BRL |
+| Revenue is concentrated in a few sellers | seller Gini 0.79; the top 1% of sellers earn 25.7% of revenue |
+| Repeat buying is rare | 3.12% of customers repeat, generating 5.73% of item revenue |
+
+**Machine learning and forecasting** (temporal test periods, no test-set selection)
+
+| Model | Result |
+|---|---|
+| Delivery-time regression (random forest) | MAE 4.37 days, 17% better than the median baseline (5.28) |
+| P95 promise (quantile gradient boosting) | 1.4 days shorter than Olist's promise (20.6 vs 22.0 days) and more reliable: 96.0% vs 94.5% delivered within it |
+| Late-delivery classification (logistic regression) | PR-AUC 0.088 against a 4.40% base rate; ROC-AUC 0.70 |
+| 14-day order-volume forecast (Holt-Winters) | WAPE 0.214, 6.9% better than the seasonal-naive baseline |
+| SHAP explanations | additivity verified to within 2.5e-13; both models rely mainly on route and promise features |
+
+**Dashboard KPIs** (validated against PostgreSQL): item revenue R$13.59M · payment value R$16.01M · 99,441 orders · 96,096 customers · AOV R$137.75 · on-time delivery 93.23% · average review score 4.09.
+
+## Dashboards
+
+| Executive Overview | Sales & Product Analytics | Customer Analytics |
 |---|---|---|
-| 4 | Ingestion, staging, clean and analytical layers | 99,441 orders, 102,425 order lines and 96,096 persons, reconciled at every layer |
-| 5 | PostgreSQL warehouse, analytics views, approved SQL queries, dbt | Warehouse equals Gold; 7 views and 5 tested dbt marts |
-| 6–7 | PySpark workloads; Airflow DAG | Spark results reconciled with PostgreSQL; one idempotent weekly DAG |
-| 8–9 | EDA and statistics; customer analytics | RFM segments, K-Means, cohort retention, historical CLV |
-| 10–12 | Delivery-time and late-delivery models; forecasting; SHAP | P95 promise model; Holt-Winters WAPE 0.214; validated explanations |
-| 13 | Five Power BI dashboards | Every KPI validated against PostgreSQL |
+| [![Executive Overview](dashboards/screenshots/01_executive_overview.png)](dashboards/screenshots/01_executive_overview.png) | [![Sales & Product Analytics](dashboards/screenshots/02_sales_product.png)](dashboards/screenshots/02_sales_product.png) | [![Customer Analytics](dashboards/screenshots/03_customer_analytics.png)](dashboards/screenshots/03_customer_analytics.png) |
 
-## Project structure
+The project has five dashboards: Executive Overview, Sales & Product Analytics, Customer Analytics, Delivery & Customer Experience, and Payment Analytics. A category drill-through page adds detail.
+- **Data:** Import mode from the warehouse star schema, the cohort mart and the approved RFM query, through a dedicated read-only login. No credentials are stored in the project.
+- **Model:** a star schema with Orders as the hub. Item revenue and payment value are never combined (Q-03), delivery measures use D-06 eligible orders, and reviews keep their own grain (Q-04).
+
+All six screenshots, the data model, the 61 DAX measures, refresh instructions and the validation results are in [`dashboards/README.md`](dashboards/README.md).
+
+## Getting started
+
+**Prerequisites:**
+- **Pipeline (Phase 4):** Windows with Python 3.12.
+- **Warehouse, dbt, notebooks 06–07 and 10, and the dashboards:** a local PostgreSQL 18 server.
+- **Optional:** WSL2 with Java 17, for PySpark and Airflow; Power BI Desktop, for the dashboards.
+
+```powershell
+# 1. Environment
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt     # or requirements-lock.txt for exact versions
+
+# 2. Data: download the Olist dataset from Kaggle and put the 9 CSV files in data\raw\
+#    (the ingestion step verifies them against the expected SHA-256 checksums)
+
+# 3. Pipeline: raw -> staging -> clean -> analytical (Gold)
+.venv\Scripts\python.exe -m src.staging
+.venv\Scripts\python.exe -m src.clean
+.venv\Scripts\python.exe -m src.analytical
+
+# 4. Warehouse: copy .env.example to .env and fill in the connection settings first
+.venv\Scripts\python.exe -m src.database create-db
+.venv\Scripts\python.exe -m src.database setup-app-role
+.venv\Scripts\python.exe -m src.database create-warehouse
+.venv\Scripts\python.exe -m src.database load-warehouse
+.venv\Scripts\python.exe -m src.database create-views
+
+# 5. dbt (separate environment, see dbt/README.md)
+py -3.12 -m venv .venv-dbt
+.venv-dbt\Scripts\python.exe -m pip install -r requirements-dbt-lock.txt
+.venv\Scripts\python.exe -m src.database dbt build
+```
+
+- **Commands:** run them all from the project root. Each one exits non-zero on failure.
+- **Notebooks:** `notebooks/01–11`, using the `.venv` kernel. Notebooks 06–07 and 10 need the database.
+- **PySpark and Airflow:** run in WSL2 (see the [technical reference](#technical-reference)).
+- **Power BI:** open `dashboards/RetailIntelligence.pbip` (see [`dashboards/README.md`](dashboards/README.md)).
+- **Secrets:** stay in `.env` (git-ignored). The template is [`.env.example`](.env.example).
+
+## Repository structure
 
 ```
 retail-intelligence/
-├── airflow/dags/       # Phase 7 — Airflow DAG orchestrating the pipeline (runs in WSL2)
-├── dashboards/         # Phase 13 — Power BI Project (RetailIntelligence.pbip), documentation and screenshots
-├── data/
-│   ├── raw/            # 9 original Olist CSVs — read-only, never modified
-│   ├── staging/        # Task 4.2 — typed Parquet copies + derived structures (not versioned)
-│   └── processed/
-│       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
-│       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
-│       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
-├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics · 08–09 machine learning · 10 forecasting · 11 explainability
-├── reports/            # data_preparation_strategy.md and one report folder per layer or phase (ingestion → explainability)
+├── airflow/dags/       # Airflow DAG orchestrating the pipeline (runs in WSL2)
+├── dashboards/         # Power BI Project (RetailIntelligence.pbip), documentation and screenshots
+├── data/               # raw/ (Olist CSVs, not versioned), staging/ and processed/ (generated, not versioned)
+├── dbt/                # dbt project: staging views and tested marts on the warehouse
+├── models/             # placeholder for model artefacts (models are rebuilt from recorded configurations)
+├── notebooks/          # 01–03 data understanding · 04–05 EDA and statistics · 06–07 customers · 08–09 ML · 10 forecasting · 11 SHAP
+├── reports/            # data_preparation_strategy.md and one report folder per layer or phase
 ├── src/
-│   ├── ingestion/      # Task 4.1 — raw data ingestion layer
-│   ├── staging/        # Task 4.2 — staging layer (Parquet)
-│   ├── clean/          # Task 4.3 — clean layer (Parquet)
-│   ├── analytical/     # Task 4.4 — analytical layer (Parquet star schema)
-│   ├── database/       # Phase 5 — PostgreSQL connection, warehouse load, analytics views, approved SQL queries
-│   ├── spark/          # Phase 6 — PySpark workloads, benchmark, reconciliation (runs in WSL2)
-│   └── ml/             # Phase 10 — leakage-checked modelling dataset and preprocessing
-├── tests/              # automated tests (unittest)
-├── dbt/                # Phase 5 — dbt project: staging views and tested marts on the warehouse
-├── models/
-└── requirements.txt
+│   ├── ingestion/ staging/ clean/ analytical/   # Phase 4 pipeline layers
+│   ├── database/       # PostgreSQL connection, warehouse load, views, approved SQL queries, dbt wrapper
+│   ├── spark/          # PySpark workloads, benchmark, reconciliation
+│   └── ml/             # leakage-checked modelling dataset and preprocessing
+├── tests/              # unittest suite
+└── requirements*.txt   # project, lock, dbt, Spark and Airflow dependencies
 ```
 
-## Setup
-
-The project uses Python 3.12 and the virtual environment in `.venv`:
+## Testing
 
 ```powershell
-py -3.12 -m venv .venv                      # only if .venv does not exist yet
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m unittest discover -s tests -t . -v
 ```
 
-All commands below are run **from the project root** with the `.venv` interpreter. Activating the environment (`.venv\Scripts\Activate.ps1`) lets you type `python` instead of `.venv\Scripts\python.exe`.
+The suite has 10 test modules with 223 test methods. Tests that need real data, PostgreSQL, dbt or Spark are skipped when that dependency isn't available.
 
-## Raw data ingestion (Task 4.1)
+| File | Covers | Needs |
+|---|---|---|
+| `test_ingestion.py` | Raw ingestion: missing files, header mismatches, parse failures, leading zeros, missing values, byte-order mark, checksums, CLI; real-data baselines from notebooks 01–03 | real-data tests skip without `data/raw/` |
+| `test_staging.py` | Staging transformations on small frames and fixtures; full staging run on the real data into a temporary directory | as above |
+| `test_clean.py` | Each flag rule, city/state standardisation, `category_map`, `zip_lookup`; raw → staging → clean on fixtures (manifest, repeatability, stale-staging blocking, exit codes); real-data run | as above |
+| `test_analytical.py` | D-15 lossless grain, V13 detection, aggregation without inflation, fan-out rejection, financial checks, durations, order sequencing, window flag, dimensions; full pipeline on fixtures and real data | as above |
+| `test_warehouse.py` | Warehouse design against the Gold contract; schema creation in throwaway schemas | PostgreSQL (skipped otherwise) |
+| `test_loader.py` | Gold → PostgreSQL load and comparison, on a tiny fixture Gold layer and on the real Gold outputs, in throwaway schemas | PostgreSQL |
+| `test_views.py` | The seven analytics views, in throwaway schemas | PostgreSQL |
+| `test_queries.py` | Every approved analytical SQL query on a small hand-calculable dataset | PostgreSQL |
+| `test_dbt.py` | dbt wrapper and credential handling; protection of the `warehouse` and `analytics` schemas | dbt and PostgreSQL for the schema-guard tests |
+| `test_spark.py` | PySpark business rules on tiny inputs | PySpark and Java (WSL2: `~/venvs/retail-spark/bin/python -m unittest tests.test_spark`) |
+
+Database tests never touch the real `warehouse` or `analytics` schemas, and real-data tests read `data/raw/` read-only.
+
+## Limitations
+
+- **Observational data:** the findings and segments are descriptive, not causal. The SHAP attributions describe the models, not causal effects.
+- **Incomplete extract:** orders after 2018-08-21 are incomplete (Sep–Oct 2018 hold 20 orders), so the documented analysis window ends at 2018-08.
+- **No status history:** order status is the status at extraction time.
+- **Analysis definitions:** RFM segments, CLV and the "low review" threshold are documented analysis definitions, not approved business KPIs. Predictive CLV and churn labels were deliberately not built (97% of customers buy once).
+- **Models aren't persisted:** the Phase 10 models are rebuilt from their recorded configurations (Phase 12 verifies they reproduce the recorded results).
+- **Local setup:** the project is designed for a single Windows machine. Spark and Airflow run in WSL2, Spark ran on 4 local cores, and the Power BI report is Desktop-only.
+
+## Future improvements
+
+These are possible next steps, not implemented features:
+- containerise PostgreSQL, Airflow and Spark (for example with Docker Compose) for one-command reproducibility;
+- add CI (for example GitHub Actions) for the unit tests and `dbt build` on a disposable database;
+- persist and version the trained models (for example with MLflow) instead of rebuilding them;
+- publish the dashboards to the Power BI Service with a gateway and scheduled refresh;
+- apply incremental loads and date partitioning, which the Spark report suggests only at much larger data volumes.
+
+## Acknowledgements and licensing
+
+- **Dataset:** [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce), provided by Olist and published on Kaggle under **CC BY-NC-SA 4.0** (attribution, non-commercial, share-alike). The raw data isn't redistributed in this repository. Any use of the data must follow that licence.
+- **Code and documentation:** this repository doesn't include a licence file yet.
+
+## Technical reference
+
+The detailed per-layer and per-phase documentation follows. Each section expands when you click it.
+
+<details>
+<summary><b>Raw data ingestion (Task 4.1)</b></summary>
 
 The ingestion layer loads the nine raw CSV files read-only, applies an explicit per-column schema, verifies file integrity, and reports the structure of every dataset. It performs **no cleaning or transformation**. See `reports/data_preparation_strategy.md` for the layer design.
 
-### Run
+#### Run
 
 ```powershell
 .venv\Scripts\python.exe -m src.ingestion
@@ -81,7 +299,7 @@ Options:
 
 Exit code `0` means all nine datasets loaded and the raw files were verified unchanged. Exit code `1` means an ingestion error, which is printed to stderr.
 
-### What a run does
+#### What a run does
 
 1. Checks that all nine expected files exist, reporting every missing file at once.
 2. Computes the SHA-256 checksum of each raw file and compares it with the approved baseline (strategy check V01).
@@ -93,13 +311,13 @@ Exit code `0` means all nine datasets loaded and the raw files were verified unc
 5. Recomputes the checksums to prove nothing was modified.
 6. Prints, for every dataset: name, rows, columns, column names, dtypes and missing-value counts.
 
-### Loading conventions
+#### Loading conventions
 
 - Only **empty fields** are treated as missing. Literal text such as `NA` or `null` stays as text.
 - The encoding is `utf-8-sig`. `product_category_name_translation.csv` begins with a UTF-8 byte-order mark, which is stripped on read; the file itself is not changed.
 - Date parsing (strategy D-03) and renaming the misspelled `*_lenght` columns (D-05) are **staging** steps, so they are not done here.
 
-### Use from Python
+#### Use from Python
 
 ```python
 from src.ingestion import ingest, profile_result
@@ -109,11 +327,14 @@ orders = result.frames["orders"]
 profiles = profile_result(result)
 ```
 
-## Staging layer (Task 4.2)
+</details>
+
+<details>
+<summary><b>Staging layer (Task 4.2)</b></summary>
 
 The staging layer converts the nine ingested datasets into typed Parquet files with **the same rows and the same values**. It also builds three derived structures approved in the preparation strategy. Ingestion is reused, not duplicated: staging calls `src.ingestion.ingest()`.
 
-### Run
+#### Run
 
 ```powershell
 .venv\Scripts\python.exe -m src.ingestion      # optional: inspect raw data first
@@ -129,7 +350,7 @@ The staging layer converts the nine ingested datasets into typed Parquet files w
 
 Exit code `0` means every blocking and regression check passed and all outputs were written and verified. Exit code `1` means a failure. If a check fails before writing, **no Parquet files are written**, but the report is still produced.
 
-### Outputs (`data/staging/`)
+#### Outputs (`data/staging/`)
 
 | File | Rows | Content |
 |---|---:|---|
@@ -140,14 +361,14 @@ Exit code `0` means every blocking and regression check passed and all outputs w
 
 Each Parquet file carries lineage in its metadata: run ID, git commit, source file and its SHA-256, row counts, transformations and column renames. Read it with `src.staging.read_lineage(path)`.
 
-### Transformations (strategy references)
+#### Transformations (strategy references)
 
 - **Dates (D-03):** the 8 date/time columns are parsed with the explicit format `%Y-%m-%d %H:%M:%S` and stay timezone-naive. Any value that fails to parse is counted, and a non-zero count blocks the run.
 - **Renames (D-05):** `product_name_lenght` → `product_name_length` and `product_description_lenght` → `product_description_length`. No other column is renamed.
 - **Categories (3.3):** `order_status`, `payment_type` and the three `*_state` columns become `category`.
 - **Unchanged:** zip prefixes stay 5-character strings and identifiers stay strings. Missing values are preserved, with nothing filled or dropped.
 
-### Not in staging
+#### Not in staging
 
 These are deferred because the strategy places them elsewhere:
 - ZIP centroids (`zip_lookup`);
@@ -155,7 +376,7 @@ These are deferred because the strategy places them elsewhere:
 - order-item quantity aggregation (D-15, analytical layer);
 - all other `dq_*` flags (clean layer).
 
-### Report
+#### Report
 
 `reports/staging/staging_report.md` and `staging_report.json` list, for every output:
 - source dataset, file and SHA-256;
@@ -165,11 +386,14 @@ These are deferred because the strategy places them elsewhere:
 
 They also record every check result (blocking, regression and warning), the execution timestamp and the git commit hash.
 
-## Clean layer (Task 4.3)
+</details>
+
+<details>
+<summary><b>Clean layer (Task 4.3)</b></summary>
 
 The clean layer reads the **staging Parquet outputs**, never the raw CSVs. It writes each source table at its source grain: the same rows, in the same order, with every staged column unchanged. Standardised copies and `dq_*` data-quality flags are appended as new columns. It also builds two reference tables. Nothing is deleted, imputed, de-duplicated or aggregated (strategy P2–P4, D-06–D-12, D-16).
 
-### Run
+#### Run
 
 ```powershell
 .venv\Scripts\python.exe -m src.staging      # prerequisite: staging outputs in data/staging
@@ -190,7 +414,7 @@ Exit code `0` means every blocking and regression check passed and all outputs w
 - staging was built from raw files that differ from the current ones (lineage SHA-256 check);
 - a project override in `category_map` no longer matches the source translation.
 
-### Outputs (`data/processed/clean/`)
+#### Outputs (`data/processed/clean/`)
 
 | File | Rows | Added columns |
 |---|---:|---|
@@ -213,7 +437,7 @@ Every added column's dtype, source column(s), rule and strategy decision are dec
 - the 2 added translations, with provisional wording pending Q-05;
 - the `uncategorized` reporting label, provisional, Q-05.
 
-### Not in the clean layer
+#### Not in the clean layer
 
 These are deferred to the analytical layer by the strategy:
 - order-line quantity (D-15);
@@ -222,7 +446,7 @@ These are deferred to the analytical layer by the strategy:
 - the analysis window (Q-11);
 - warnings W01 and W05.
 
-### Lineage and reports
+#### Lineage and reports
 
 - `data/processed/_manifest/<run_id>.json` (D-14) contains:
   - run ID and timestamps;
@@ -233,13 +457,16 @@ These are deferred to the analytical layer by the strategy:
   - the output registry: path, grain, rows, schema, file SHA-256, and a run-independent content SHA-256 that is identical across repeated runs.
 - `reports/clean/clean_report.md` and `clean_report.json` list every output, its added columns, flag counts, schema and missing values, and every check result.
 
-## Analytical layer (Task 4.4)
+</details>
+
+<details>
+<summary><b>Analytical layer (Task 4.4)</b></summary>
 
 The analytical layer reads the **clean Parquet outputs** and builds a star schema for sales, customer, product, seller, payment, delivery and review analysis, and for later modelling.
 
 Every one-to-many table is aggregated to its target grain **before** it is joined. Every join is a left join validated as `one_to_one` or `many_to_one`, and its row counts are recorded in the report (strategy P5, D-13). Order items and payments are never joined at row level, so sales, freight and payment totals cannot inflate.
 
-### Run
+#### Run
 
 ```powershell
 .venv\Scripts\python.exe -m src.ingestion        # optional inspection
@@ -255,7 +482,7 @@ The run is refused before writing in any of these cases:
 - clean was built from raw files that differ from the current ones;
 - any blocking or regression check fails.
 
-### Tables (`data/processed/analytical/`)
+#### Tables (`data/processed/analytical/`)
 
 | Table | Grain / primary key | Rows | Purpose and main measures |
 |---|---|---:|---|
@@ -270,7 +497,7 @@ The run is refused before writing in any of these cases:
 
 Grain, keys, foreign keys, sources and the explicit schema of every table are declared in `src/analytical/schema.py` (`TABLES`). They are repeated in the Parquet lineage, the run manifest and the report.
 
-### Rules applied (open questions use their conservative defaults)
+#### Rules applied (open questions use their conservative defaults)
 
 - **Q-03 revenue:**
   - item-based measures (`items_price_total`, `line_price_total`) and payment-based measures (`payment_total`) are separate, labelled columns;
@@ -288,7 +515,7 @@ Grain, keys, foreign keys, sources and the explicit schema of every table are de
   - product or seller performance tables, because each is one group-by on `fact_order_lines` and their eligibility rules are open.
 - **Leakage:** `dim_customers` spans the full history. Model features must be derived from the fact tables with an explicit cut-off date.
 
-### Validation, lineage and reports
+#### Validation, lineage and reports
 
 - **Blocking checks:**
   - raw and clean inputs unchanged; clean lineage matches the current raw files;
@@ -306,7 +533,10 @@ Grain, keys, foreign keys, sources and the explicit schema of every table are de
 - **Warnings:** W01, W04, W05.
 - **Lineage:** `data/processed/_manifest/<run_id>.json` and `reports/analytical/analytical_report.{json,md}` follow the clean-layer conventions. They also record every join and the decisions applied.
 
-## PostgreSQL warehouse and dbt (Phase 5)
+</details>
+
+<details>
+<summary><b>PostgreSQL warehouse and dbt (Phase 5)</b></summary>
 
 The Gold star schema is loaded into PostgreSQL 18 (database `retail_intelligence`) as a faithful relational copy, with exact money types, keys and indexes. Connection settings come from `.env` (template: `.env.example`, never committed). The project code connects as the application role `retail_app`.
 
@@ -330,7 +560,10 @@ The Gold star schema is loaded into PostgreSQL 18 (database `retail_intelligence
 
 Design and decisions: `reports/database/warehouse_schema_design.md`. dbt: `dbt/README.md`.
 
-## PySpark (Phase 6)
+</details>
+
+<details>
+<summary><b>PySpark (Phase 6)</b></summary>
 
 Three analytical workloads on the Gold Parquet files with PySpark 4.2.0. They demonstrate the DataFrame API, Spark SQL, broadcast joins, partitioning and query plans, with a benchmark against pandas. Spark runs in **WSL2** (native Windows Spark cannot write Parquet without third-party `winutils`); see `requirements-spark.txt` for the setup.
 
@@ -344,7 +577,10 @@ Three analytical workloads on the Gold Parquet files with PySpark 4.2.0. They de
 
 Methods, partitioning and plan evidence, benchmark results and limitations: `reports/spark/spark_report.md`.
 
-## Airflow (Phase 7)
+</details>
+
+<details>
+<summary><b>Airflow (Phase 7)</b></summary>
 
 `airflow/dags/retail_pipeline.py` orchestrates the existing commands. It contains no pipeline logic of its own:
 
@@ -378,7 +614,10 @@ export AIRFLOW__CORE__LOAD_EXAMPLES=False
 - **Rerunning a task:** use *Clear* on it in the UI.
 - **Local test without a scheduler:** `airflow dags test retail_intelligence_pipeline --mark-success-pattern '^(staging|clean|analytical|load_warehouse)$'` runs the DAG in-process and skips the rebuild stages.
 
-## Advanced EDA and statistics (Phase 8)
+</details>
+
+<details>
+<summary><b>Advanced EDA and statistics (Phase 8)</b></summary>
 
 Two notebooks on the Gold tables, run with the project `.venv`:
 - `notebooks/04_advanced_eda.ipynb`: distributions, trends and seasonality, revenue concentration, customer behaviour, categories, delivery vs reviews.
@@ -390,7 +629,10 @@ Two notebooks on the Gold tables, run with the project `.venv`:
 
 Methodology, findings and limitations: `reports/eda/eda_statistics_report.md`.
 
-## Customer analytics (Phase 9)
+</details>
+
+<details>
+<summary><b>Customer analytics (Phase 9)</b></summary>
 
 Two notebooks on the Gold tables, reusing the approved customer SQL queries and the dbt cohort mart (they require the PostgreSQL database):
 - `notebooks/06_customer_behavior_rfm.ipynb`: purchasing behaviour, RFM scores (independently validated against `customer_rfm`), documented RFM segments, and historical CLV.
@@ -398,7 +640,10 @@ Two notebooks on the Gold tables, reusing the approved customer SQL queries and 
 
 Methodology, findings, figures and recommendations: `reports/customer_analytics/customer_analytics_report.md`.
 
-## Machine learning (Phase 10)
+</details>
+
+<details>
+<summary><b>Machine learning (Phase 10)</b></summary>
 
 Delivery prediction **at checkout**, using a shared, leakage-checked order-level dataset (`src/ml/delivery_features.py`):
 - **Validation:** a temporal test on the most recent four months (2018-05 to 2018-08), with `TimeSeriesSplit` tuning inside the development period and preprocessing fitted inside scikit-learn pipelines.
@@ -407,7 +652,10 @@ Delivery prediction **at checkout**, using a shared, leakage-checked order-level
 
 Results, methodology and limitations: `reports/machine_learning/machine_learning_report.md`.
 
-## Time-series forecasting (Phase 11)
+</details>
+
+<details>
+<summary><b>Time-series forecasting (Phase 11)</b></summary>
 
 `notebooks/10_time_series_forecasting.ipynb` forecasts **daily order volume 14 days ahead, issued weekly** (2017-01-01 to 2018-08-21; the extract is incomplete after that date).
 - **Validation:** rolling-origin, expanding-window evaluation with chronological validation (March–May 2018) and a final test (June–August 2018) used once. Leakage-safe direct features (all inputs ≥ 14 days old).
@@ -417,7 +665,10 @@ Results, methodology and limitations: `reports/machine_learning/machine_learning
 
 Methodology, results and limitations: `reports/forecasting/forecasting_report.md`.
 
-## Explainable AI (Phase 12)
+</details>
+
+<details>
+<summary><b>Explainable AI (Phase 12)</b></summary>
 
 `notebooks/11_model_explainability.ipynb` explains the two Phase 10 delivery models with **SHAP** (`shap==0.54.1`):
 - **Models:** the Phase 10 models weren't saved, so they're rebuilt from their recorded configurations. Before explaining, the notebook verifies that they reproduce the recorded test results (random forest MAE 4.365; logistic regression PR-AUC 0.0883, ROC-AUC 0.7032).
@@ -428,35 +679,4 @@ Methodology, results and limitations: `reports/forecasting/forecasting_report.md
 
 Methodology, results and limitations: `reports/explainability/explainability_report.md`.
 
-## Power BI dashboards (Phase 13)
-
-`dashboards/RetailIntelligence.pbip` is a Power BI Project (TMDL model and PBIR report) with five dashboards: Executive Overview, Sales & Product Analytics, Customer Analytics, Delivery & Customer Experience, and Payment Analytics. A category drill-through page adds detail.
-
-- **Data:** Import mode from the warehouse star schema, the cohort mart and the approved RFM query, through the dedicated read-only login `powerbi_reader`. No credentials are stored in the project.
-- **Model:** a star schema with Orders as the hub. Item revenue and payment value are never combined (Q-03), delivery measures use D-06 eligible orders, and reviews keep their own grain with no order-level score (Q-04).
-- **Validation:** the KPIs and DAX measures shown on the pages, the slicers and the drill-through were checked against PostgreSQL views, marts and SQL, and they match.
-
-![Executive Overview](dashboards/screenshots/01_executive_overview.png)
-
-Pages, data model, the measure reference, opening and refresh instructions, and validation: `dashboards/README.md`.
-
-## Tests
-
-```powershell
-.venv\Scripts\python.exe -m unittest discover -s tests -t . -v
-```
-
-| File | Covers | Needs |
-|---|---|---|
-| `test_ingestion.py` | Raw ingestion: missing files, header mismatches, parse failures, leading zeros, missing values, byte-order mark, checksums, CLI; real-data baselines from notebooks 01–03 | real-data tests skip without `data/raw/` |
-| `test_staging.py` | Staging transformations on small frames and fixtures; full staging run on the real data into a temporary directory | as above |
-| `test_clean.py` | Each flag rule, city/state standardisation, `category_map`, `zip_lookup`; raw → staging → clean on fixtures (manifest, repeatability, stale-staging blocking, exit codes); real-data run | as above |
-| `test_analytical.py` | D-15 lossless grain, V13 detection, aggregation without inflation, fan-out rejection, financial checks, durations, order sequencing, window flag, dimensions; full pipeline on fixtures and real data | as above |
-| `test_warehouse.py` | Warehouse design against the Gold contract; schema creation in throwaway schemas | PostgreSQL (skipped otherwise) |
-| `test_loader.py` | Gold → PostgreSQL load and comparison, on a tiny fixture Gold layer and on the real Gold outputs, in throwaway schemas | PostgreSQL |
-| `test_views.py` | The seven analytics views, in throwaway schemas | PostgreSQL |
-| `test_queries.py` | Every approved analytical SQL query on a small hand-calculable dataset | PostgreSQL |
-| `test_dbt.py` | dbt wrapper and credential handling; protection of the `warehouse` and `analytics` schemas | dbt and PostgreSQL for the schema-guard tests |
-| `test_spark.py` | PySpark business rules on tiny inputs | PySpark and Java (WSL2: `~/venvs/retail-spark/bin/python -m unittest tests.test_spark`) |
-
-Database tests never touch the real `warehouse` or `analytics` schemas, and real-data tests read `data/raw/` read-only.
+</details>
