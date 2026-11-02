@@ -1,0 +1,343 @@
+# Source: the PostgreSQL `analytics` views (Task 5.4, Milestone 2).
+#
+# Read-only for dbt. Defined in src/database/sql/views/NN_<view>.sql (the source of truth for every
+# formula), created by `create-views`, verified and reconciled with the warehouse by `verify-views`.
+# dbt never re-implements these views; downstream models select from them or from the warehouse.
+#
+# Tests: the grain column of each view is unique and not null; views at an entity grain cover the
+# whole dimension and reference it (relationships). No freshness: views are always current with the
+# warehouse (doc rule_no_freshness).
+
+version: 2
+
+sources:
+  - name: analytics
+    description: '{{ doc("source_analytics") }}'
+    schema: "{{ var('analytics_schema', 'analytics') }}"
+    tables:
+
+      - name: sales_daily
+        description: >
+          **Grain: one calendar day** between the first and last purchase date (2016-09-04 to
+          2018-10-17), including days without orders (measures 0). Built from dim_dates; orders, order
+          lines and payments are aggregated per day independently and then joined 1:1 - no fan-out.
+          {{ doc("rule_revenue_separation") }} {{ doc("rule_delivered_variant") }}
+          Filter on `in_candidate_window` for trend analysis (Q-11).
+        columns:
+          - name: purchase_date
+            description: The day (grain). Equals `dim_dates.date`.
+            data_tests:
+              - unique
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_dates')", field: date}
+          - name: year
+            description: Calendar year (from dim_dates).
+          - name: month
+            description: Calendar month (from dim_dates).
+          - name: year_month
+            description: "`YYYY-MM` (from dim_dates)."
+          - name: iso_year
+            description: ISO year (from dim_dates).
+          - name: iso_week
+            description: ISO week (from dim_dates).
+          - name: day_of_week
+            description: ISO day of the week, Monday = 1 (from dim_dates).
+          - name: is_weekend
+            description: Saturday or Sunday (from dim_dates).
+          - name: in_candidate_window
+            description: '{{ doc("col_in_candidate_window") }}'
+          - name: n_orders
+            description: Orders purchased on the day (all statuses).
+          - name: n_orders_delivered
+            description: Orders with status `delivered`.
+          - name: n_orders_canceled
+            description: Orders with status `canceled`.
+          - name: n_orders_with_items
+            description: Distinct orders with at least one order line (orders without items, Q-16, are excluded).
+          - name: units
+            description: Units sold (sum of `quantity`). Item-based.
+          - name: items_price_total
+            description: Item-based sales (sum of `line_price_total`). Never combine with `payment_total` (Q-03).
+          - name: items_freight_total
+            description: Item-based freight (sum of `freight_total`).
+          - name: units_delivered
+            description: Units of delivered orders.
+          - name: items_price_total_delivered
+            description: Item-based sales of delivered orders.
+          - name: items_freight_total_delivered
+            description: Item-based freight of delivered orders.
+          - name: n_payments
+            description: Payment transactions of the day's orders.
+          - name: payment_total
+            description: Payment-based value (sum of `payment_value`). Never combine with `items_*` (Q-03).
+          - name: payment_total_delivered
+            description: Payment-based value of delivered orders.
+
+      - name: product_performance
+        description: >
+          **Grain: one product** - all products of dim_products; never-sold products show 0 and NULL
+          averages / timestamps. **Item-based measures only** from fact_order_lines: payments cannot
+          be attributed to products. `avg_unit_price` = items_price_total / units (unit-weighted).
+          {{ doc("rule_delivered_variant") }} Category labels are provisional (Q-05).
+        columns:
+          - name: product_id
+            description: The product (grain).
+            data_tests:
+              - unique
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_products')", field: product_id}
+          - name: category_reporting
+            description: '{{ doc("col_category_reporting") }}'
+          - name: category_en_clean
+            description: English category (D-12); NULL for uncategorised products.
+          - name: product_category_name
+            description: Raw category name; NULL for uncategorised products.
+          - name: n_orders
+            description: Distinct orders containing the product.
+          - name: n_order_lines
+            description: Order lines of the product.
+          - name: units
+            description: Units sold.
+          - name: items_price_total
+            description: Item-based sales.
+          - name: items_freight_total
+            description: Item-based freight.
+          - name: avg_unit_price
+            description: items_price_total / units, rounded to 2 dp; NULL for never-sold products.
+          - name: n_orders_delivered
+            description: Distinct delivered orders.
+          - name: units_delivered
+            description: Units of delivered orders.
+          - name: items_price_total_delivered
+            description: Item-based sales of delivered orders.
+          - name: n_sellers
+            description: Distinct sellers that sold the product.
+          - name: n_customers
+            description: Distinct persons who bought the product.
+          - name: first_sale_ts
+            description: First purchase timestamp of an order with the product; NULL if never sold.
+          - name: last_sale_ts
+            description: Last purchase timestamp of an order with the product.
+          - name: dq_listing_metadata_missing
+            description: From dim_products - all listing fields missing.
+          - name: dq_physical_attributes_missing
+            description: From dim_products - all physical attributes missing.
+
+      - name: category_performance
+        description: >
+          **Grain: one reporting category** (`dim_products.category_reporting`, including
+          `uncategorized`). Item-based; lines are joined many-to-one to dim_products, so totals are
+          exact. `units` and `*_total` are additive across categories; **`n_orders` is not** (an order
+          with products from several categories counts in each). Labels are provisional (Q-05); `_2`
+          twins are separate categories.
+        columns:
+          - name: category_reporting
+            description: The category (grain).
+            data_tests: [unique, not_null]
+          - name: n_products
+            description: Products in the category (all of dim_products).
+          - name: n_products_sold
+            description: Products in the category with at least one order line.
+          - name: n_orders
+            description: Distinct orders with a product of the category. Not additive across categories.
+          - name: units
+            description: Units sold (additive).
+          - name: items_price_total
+            description: Item-based sales (additive).
+          - name: items_freight_total
+            description: Item-based freight (additive).
+          - name: avg_unit_price
+            description: items_price_total / units, rounded to 2 dp.
+          - name: n_orders_delivered
+            description: Distinct delivered orders. Not additive across categories.
+          - name: units_delivered
+            description: Units of delivered orders.
+          - name: items_price_total_delivered
+            description: Item-based sales of delivered orders.
+
+      - name: customer_performance
+        description: >
+          **Grain: one person** (`customer_unique_id`) - all persons of dim_customers.
+          {{ doc("rule_full_history") }} Averages divide by the orders that have the measure: orders
+          without items or payment are excluded from the respective denominator, never counted as 0
+          (Q-16). Item-based and payment-based measures stay separate (Q-03). No address at person
+          level (it varies by order; see fact_orders).
+        columns:
+          - name: customer_unique_id
+            description: The person (grain).
+            data_tests:
+              - unique
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_customers')", field: customer_unique_id}
+          - name: cohort_month
+            description: Month of the first purchase.
+          - name: first_purchase_ts
+            description: First purchase timestamp.
+          - name: last_purchase_ts
+            description: Last purchase timestamp.
+          - name: days_first_to_last_purchase
+            description: Days between first and last purchase (2 dp); 0 for single-order persons.
+          - name: n_orders
+            description: Orders of the person.
+          - name: is_repeat_customer
+            description: "`n_orders > 1`."
+          - name: n_orders_with_items
+            description: Orders with at least one order line (denominator of avg_items_price_per_order).
+          - name: n_orders_with_payment
+            description: Orders with at least one payment (denominator of avg_payment_per_order).
+          - name: n_items
+            description: Source item rows over all orders.
+          - name: items_price_total
+            description: Item-based value; NULL without items.
+          - name: items_freight_total
+            description: Item-based freight; NULL without items.
+          - name: payment_total
+            description: Payment-based value; NULL without payment.
+          - name: avg_items_price_per_order
+            description: items_price_total / n_orders_with_items (2 dp).
+          - name: avg_payment_per_order
+            description: payment_total / n_orders_with_payment (2 dp).
+          - name: n_orders_delivered
+            description: Delivered orders.
+          - name: n_items_delivered
+            description: Item rows of delivered orders.
+          - name: items_price_total_delivered
+            description: Item-based value of delivered orders.
+          - name: items_freight_total_delivered
+            description: Item-based freight of delivered orders.
+          - name: payment_total_delivered
+            description: Payment-based value of delivered orders.
+          - name: first_delivered_purchase_ts
+            description: First purchase among delivered orders.
+          - name: last_delivered_purchase_ts
+            description: Last purchase among delivered orders.
+          - name: n_review_links
+            description: Sum of `fact_orders.review_count` - review-order links, not distinct reviews and not a score (Q-04).
+          - name: n_customer_ids
+            description: Per-order customer ids of the person.
+          - name: n_distinct_zips
+            description: Distinct zip prefixes across the person's orders.
+          - name: n_distinct_states
+            description: Distinct states across the person's orders.
+
+      - name: seller_performance
+        description: >
+          **Grain: one seller** - all sellers of dim_sellers. **Item-based measures only.**
+          {{ doc("rule_no_seller_attribution") }} {{ doc("rule_delivered_variant") }}
+        columns:
+          - name: seller_id
+            description: The seller (grain).
+            data_tests:
+              - unique
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_sellers')", field: seller_id}
+          - name: seller_state_std
+            description: Standardised seller state.
+          - name: city_key
+            description: Standardised seller city key.
+          - name: dq_city_malformed
+            description: Raw seller city is malformed (Q-12).
+          - name: n_orders
+            description: Distinct orders with at least one line of the seller.
+          - name: n_order_lines
+            description: Order lines of the seller.
+          - name: units
+            description: Units sold.
+          - name: items_price_total
+            description: Item-based sales.
+          - name: items_freight_total
+            description: Item-based freight.
+          - name: avg_unit_price
+            description: items_price_total / units (2 dp); NULL for sellers without sales.
+          - name: n_orders_delivered
+            description: Distinct delivered orders.
+          - name: units_delivered
+            description: Units of delivered orders.
+          - name: items_price_total_delivered
+            description: Item-based sales of delivered orders.
+          - name: n_products
+            description: Distinct products sold.
+          - name: n_customers
+            description: Distinct persons served.
+          - name: first_sale_ts
+            description: First purchase timestamp of an order with the seller.
+          - name: last_sale_ts
+            description: Last purchase timestamp of an order with the seller.
+
+      - name: delivery_monthly
+        description: >
+          **Grain: one purchase month** (`fact_orders.purchase_year_month`).
+          {{ doc("rule_delivery_eligibility") }} Rates and averages are over the eligible orders only;
+          `n_orders` covers all orders of the month. Months outside the Q-11 candidate window have very
+          few orders - read their rates with care.
+        columns:
+          - name: purchase_year_month
+            description: Purchase month `YYYY-MM` (grain).
+            data_tests: [unique, not_null]
+          - name: n_orders
+            description: All orders of the month.
+          - name: n_orders_delivered
+            description: Orders with status `delivered`.
+          - name: n_delivery_eligible
+            description: D-06 eligible - delivered with a delivery date. Denominator of late_rate.
+          - name: n_delivered_missing_date
+            description: Delivered orders without a delivery date (Q-02), excluded from the metrics.
+          - name: n_canceled_with_delivery_date
+            description: Canceled orders with a delivery date (Q-01), excluded from the metrics.
+          - name: n_late
+            description: Eligible orders delivered after the estimate (day level).
+          - name: late_rate
+            description: n_late / n_delivery_eligible (4 dp); NULL without eligible orders.
+          - name: avg_purchase_to_delivery_days
+            description: Mean purchase-to-delivery days over eligible orders where defined (2 dp).
+          - name: median_purchase_to_delivery_days
+            description: Median purchase-to-delivery days over eligible orders (2 dp).
+          - name: avg_carrier_to_customer_days
+            description: Mean transit days over eligible orders with a valid transit (NULL when D-08 invalid).
+          - name: avg_approval_hours
+            description: Mean purchase-to-approval hours over eligible orders where defined.
+          - name: avg_delivery_vs_estimate_days
+            description: Mean delivery-minus-estimate days (day level; negative = early).
+          - name: n_eligible_without_valid_transit
+            description: Eligible orders whose `carrier_to_customer_days` is NULL (D-08 or missing carrier date).
+
+      - name: delivery_by_state
+        description: >
+          **Grain: one customer state** (`fact_orders.customer_state_std` - the location of the order's
+          customer record, not a person-level address). Same eligible population and measures as
+          `delivery_monthly`. {{ doc("rule_delivery_eligibility") }} Customer geography only: delivery is
+          not attributed to seller states or sellers.
+        columns:
+          - name: customer_state_std
+            description: Customer state (grain).
+            data_tests: [unique, not_null]
+          - name: n_orders
+            description: All orders of the state.
+          - name: n_orders_delivered
+            description: Orders with status `delivered`.
+          - name: n_delivery_eligible
+            description: D-06 eligible - delivered with a delivery date.
+          - name: n_delivered_missing_date
+            description: Delivered orders without a delivery date (Q-02).
+          - name: n_canceled_with_delivery_date
+            description: Canceled orders with a delivery date (Q-01).
+          - name: n_late
+            description: Eligible orders delivered after the estimate (day level).
+          - name: late_rate
+            description: n_late / n_delivery_eligible (4 dp).
+          - name: avg_purchase_to_delivery_days
+            description: Mean purchase-to-delivery days over eligible orders (2 dp).
+          - name: median_purchase_to_delivery_days
+            description: Median purchase-to-delivery days over eligible orders (2 dp).
+          - name: avg_carrier_to_customer_days
+            description: Mean transit days over eligible orders with a valid transit.
+          - name: avg_approval_hours
+            description: Mean purchase-to-approval hours over eligible orders.
+          - name: avg_delivery_vs_estimate_days
+            description: Mean delivery-minus-estimate days (day level; negative = early).
+          - name: n_eligible_without_valid_transit
+            description: Eligible orders whose `carrier_to_customer_days` is NULL.

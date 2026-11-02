@@ -35,6 +35,21 @@ command does), passes them to the dbt process only, connects as the application 
 (`POSTGRES_USER`) and runs in this directory, so `target/` and `logs/` stay here (both git-ignored).
 `profiles.yml` contains no credentials.
 
+## Sources
+
+`models/sources/` declares the existing PostgreSQL objects as dbt sources (read-only):
+
+| File | Contents |
+|---|---|
+| `_warehouse__sources.yml` | source `warehouse`: the 8 Gold tables + `load_run` (grain, keys, 13 FKs, every column) |
+| `_analytics__sources.yml` | source `analytics`: the 7 views of `src/database/sql/views/` (grain, every column) |
+| `_sources__docs.md` | shared doc blocks: project overview, interpretation rules (Q-03, Q-04, Q-11, D-06/D-08) |
+
+Source tests (primary keys, the composite keys via `tests/generic/unique_combination_of_columns.sql`,
+foreign keys, view grains) restate what PostgreSQL and `verify-views` already enforce; they are
+read-only SELECTs. No source freshness is configured (closed historical extract; reloads have no
+schedule). Browse the documentation with `... dbt docs generate` then `... dbt docs serve`.
+
 ## Rules
 
 - Never create, replace or delete objects in `warehouse` or `analytics`.

@@ -1,0 +1,536 @@
+# Source: the PostgreSQL `warehouse` schema (Task 5.4, Milestone 2).
+#
+# Read-only for dbt. Owned by the Python pipeline: DDL in src/database/warehouse.py, loaded from Gold
+# by src/database/loader.py, verified by `verify-warehouse` / `validate-load`. Column names, grain and
+# keys follow reports/database/warehouse_schema_design.md and src/analytical/schema.py (TABLES).
+#
+# Tests: primary-key uniqueness and not-null, the W-07 grain guards and the 13 Gold foreign keys
+# (W-06). They restate constraints PostgreSQL already enforces, so they document the model in dbt and
+# would catch a schema that drifted from the design. Observed vocabularies (order_status,
+# payment_type, states) are deliberately NOT tested with accepted_values: they are regression
+# facts, not business rules (W-09, strategy 11.3.2). No source freshness: see doc rule_no_freshness.
+
+version: 2
+
+sources:
+  - name: warehouse
+    description: '{{ doc("source_warehouse") }}'
+    schema: "{{ var('warehouse_schema', 'warehouse') }}"
+    tables:
+
+      # ------------------------------------------------------------------ facts
+      - name: fact_order_lines
+        description: >
+          **Grain: one order line** = the order-item rows identical in (order_id, product_id, seller_id,
+          price, freight_value, shipping_limit_date) (D-15); 102,425 rows in Gold run baea48c9b8ac.
+          Purpose: product, category, seller and demand analysis - units sold and **item-based** sales
+          per line. Repeated identical item rows are collapsed into `quantity`; the coarser grain is
+          unverified, so never re-aggregate lines to (order, product) and call it a line.
+          Many-to-one to fact_orders, dim_products, dim_sellers, dim_customers and dim_dates.
+          Payments and reviews are per order and must not be joined here row by row
+          ({{ doc("rule_no_seller_attribution") }}).
+        data_tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [order_id, product_id, seller_id, unit_price, freight_value_per_row,
+                                         shipping_limit_date]
+        columns:
+          - name: order_line_id
+            description: "Primary key: `order_id:first_order_item_id`."
+            data_tests: [unique, not_null]
+          - name: order_id
+            description: '{{ doc("col_order_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'fact_orders')", field: order_id}
+          - name: first_order_item_id
+            description: Smallest source `order_item_id` of the identical rows forming this line.
+          - name: product_id
+            description: '{{ doc("col_product_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_products')", field: product_id}
+          - name: seller_id
+            description: '{{ doc("col_seller_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_sellers')", field: seller_id}
+          - name: shipping_limit_date
+            description: Seller shipping deadline. 4 values in 2020 are flagged `dq_shipping_limit_out_of_range` (Q-15).
+          - name: quantity
+            description: Number of identical item rows collapsed into the line (1-20; CHECK `quantity >= 1`).
+          - name: unit_price
+            description: Item price per unit (`numeric(12,2)`).
+          - name: freight_value_per_row
+            description: >
+              `freight_value` of one source item row. Its meaning (per unit or allocated share) is not
+              determinable (Q-17); use `freight_total`, not freight-per-unit semantics.
+          - name: line_price_total
+            description: "Item-based sales of the line: `unit_price * quantity` (CHECK constraint). Not payment revenue (Q-03)."
+          - name: freight_total
+            description: Sum of `freight_value` over the line's rows (D-15; reproduces the raw total under either Q-17 meaning).
+          - name: order_item_ids
+            description: Source `order_item_id`s of the line (`integer[]`, D-15 traceability; cardinality = quantity).
+          - name: dq_shipping_limit_out_of_range
+            description: Shipping deadline outside the plausible range (D-08 / Q-15; 4 rows). Flag only.
+          - name: customer_unique_id
+            description: '{{ doc("col_customer_unique_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_customers')", field: customer_unique_id}
+          - name: order_status
+            description: '{{ doc("col_order_status") }}'
+          - name: order_purchase_timestamp
+            description: '{{ doc("col_order_purchase_timestamp") }}'
+          - name: purchase_date
+            description: '{{ doc("col_purchase_date") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_dates')", field: date}
+          - name: in_candidate_window
+            description: '{{ doc("col_in_candidate_window") }}'
+
+      - name: fact_orders
+        description: >
+          **Grain: one order** (99,441 rows). Purpose: order-level sales, payment reconciliation,
+          delivery/logistics, cohort and retention analysis (D-13, D-08). Order lines and payments
+          were aggregated to the order **before** joining (D-13), so `items_*` and `payment_*` are
+          exact per-order totals - kept as separate measures ({{ doc("rule_revenue_separation") }}).
+          The customer location is kept per order (it can change between a person's orders).
+          `customer_id` is unique: customers and orders are strictly one-to-one (D-01).
+          Orders without items (775) or without payment (1) are kept; their counts are 0 and their
+          totals NULL, not 0 (Q-16).
+        columns:
+          - name: order_id
+            description: Primary key.
+            data_tests: [unique, not_null]
+          - name: customer_id
+            description: Per-order customer key of the source (UNIQUE, one-to-one with order_id, D-01). Use `customer_unique_id` for the person.
+            data_tests: [unique, not_null]
+          - name: customer_unique_id
+            description: '{{ doc("col_customer_unique_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_customers')", field: customer_unique_id}
+          - name: order_status
+            description: '{{ doc("col_order_status") }}'
+          - name: order_purchase_timestamp
+            description: Purchase timestamp (timezone unknown, Q-14).
+          - name: order_approved_at
+            description: Payment approval timestamp; NULL for 160 orders never approved.
+          - name: order_delivered_carrier_date
+            description: Hand-over to the carrier; NULL for 1,783 orders.
+          - name: order_delivered_customer_date
+            description: Delivery to the customer; NULL for 2,965 orders (8 of them `delivered`, Q-02).
+          - name: order_estimated_delivery_date
+            description: Estimated delivery date shown at purchase. Always midnight; kept as `timestamp(0)` (Q2) and compared at day level.
+          - name: purchase_date
+            description: Calendar day of the purchase. FK to `dim_dates.date`.
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_dates')", field: date}
+          - name: purchase_year_month
+            description: Purchase month, `YYYY-MM` (the grain of `analytics.delivery_monthly`).
+          - name: in_candidate_window
+            description: '{{ doc("col_in_candidate_window") }}'
+          - name: customer_order_seq
+            description: 1-based position of the order in the person's order history (by purchase time).
+          - name: is_first_order
+            description: True for the person's first order (`customer_order_seq = 1`).
+          - name: customer_zip_code_prefix
+            description: 5-digit zip prefix of the order's customer record, leading zeros preserved (D-04; CHECK `^[0-9]{5}$`).
+          - name: customer_city_key
+            description: Standardised city key (accent-free, lower case, trimmed; D-11).
+          - name: customer_state_std
+            description: Standardised customer state of the order's customer record (grain of `analytics.delivery_by_state`).
+          - name: customer_lat_centroid
+            description: Zip-prefix centroid latitude (D-10 unweighted median); NULL for 279 orders without geolocation.
+          - name: customer_lng_centroid
+            description: Zip-prefix centroid longitude; NULL where the latitude is NULL.
+          - name: dq_customer_no_geolocation
+            description: No geolocation for the zip prefix (279 orders).
+          - name: dq_delivered_missing_approval
+            description: Delivered order without approval timestamp (D-06 gap flag; 14).
+          - name: dq_delivered_missing_carrier_date
+            description: Delivered order without carrier date (D-06 gap flag; 2).
+          - name: dq_delivered_missing_delivery_date
+            description: Delivered order without delivery date (D-06 gap flag / Q-02; 8). Excluded from delivery metrics.
+          - name: dq_carrier_before_purchase
+            description: Carrier date before purchase - impossible sequence (D-08; 166). Affected durations are NULL.
+          - name: dq_delivered_before_carrier
+            description: Delivery before carrier hand-over - impossible sequence (D-08; 23). `carrier_to_customer_days` is NULL.
+          - name: dq_carrier_before_approval
+            description: Carrier date before approval - suspicious sequence (D-08; 1,359).
+          - name: dq_delivered_before_approval
+            description: Delivery before approval - suspicious sequence (D-08; 61).
+          - name: dq_status_canceled_with_date
+            description: Canceled order with a delivery date (Q-01; 6). Kept and reported separately.
+          - name: dq_same_person_same_second
+            description: Another order of the same person at the same second (Q-09; 582). Kept as separate orders.
+          - name: has_items
+            description: The order has at least one order line (false for 775 orders, Q-16).
+          - name: item_count
+            description: Number of source item rows (= sum of line quantities); 0 without items.
+          - name: order_line_count
+            description: Number of order lines (D-15 grain); 0 without items.
+          - name: distinct_products
+            description: Distinct products in the order; 0 without items.
+          - name: distinct_sellers
+            description: Distinct sellers in the order; 0 without items. Values > 1 (1,278 orders) are why order-level measures cannot be attributed to sellers.
+          - name: items_price_total
+            description: Item-based order value (sum of `line_price_total`); NULL without items (Q-16). Not payment revenue (Q-03).
+          - name: items_freight_total
+            description: Item-based order freight (sum of `freight_total`); NULL without items.
+          - name: has_payment
+            description: The order has at least one payment row (false for 1 order, Q-16).
+          - name: payment_rows
+            description: Number of payment transactions; 0 without payment.
+          - name: payment_total
+            description: Payment-based order value (sum of `payment_value`, all payment types incl. vouchers); NULL without payment. Not item revenue (Q-03).
+          - name: payment_types
+            description: Distinct payment types joined with `|` (e.g. `credit_card|voucher`); NULL without payment.
+          - name: has_voucher
+            description: At least one voucher payment.
+          - name: max_installments
+            description: Largest instalment count, ignoring zero-instalment rows (D-16); NULL for 3 orders.
+          - name: payment_minus_items
+            description: >
+              `round(payment_total - (items_price_total + items_freight_total), 2)` - a reconciliation
+              diagnostic, signed (-51.62 to 182.81), NULL when either side is missing (776). It is not a
+              revenue measure and does not license combining the two totals.
+          - name: dq_payment_items_mismatch
+            description: "|payment_minus_items| > 0.01 (D-13; 303 orders: 264 overpaid, 39 underpaid). Never force-reconciled."
+          - name: review_count
+            description: Number of review-order links of the order. The only order-level review attribute - there is no order-level score (Q-04).
+          - name: approval_hours
+            description: Purchase to approval, hours. NULL where an input is missing or invalid (D-08).
+          - name: purchase_to_carrier_days
+            description: Purchase to carrier hand-over, days (D-08 guarded).
+          - name: approval_to_carrier_days
+            description: Approval to carrier hand-over, days (D-08 guarded).
+          - name: carrier_to_customer_days
+            description: Carrier to customer (transit), days; NULL when `dq_delivered_before_carrier` (D-08).
+          - name: approval_to_delivery_days
+            description: Approval to delivery, days (D-08 guarded).
+          - name: purchase_to_delivery_days
+            description: Purchase to delivery, days (D-08 guarded; valid for every delivered row with a date).
+          - name: delivery_vs_estimate_days
+            description: Delivery day minus estimated delivery day (day level, D-08 rule 4); positive = late. NULL without a delivery date.
+          - name: is_late
+            description: "`delivery_vs_estimate_days > 0` (day level; 6,535 late). NULL exactly where the delivery date is missing (2,965)."
+
+      - name: fact_payments
+        description: >
+          **Grain: one payment transaction** (103,886 rows); primary key (order_id, payment_sequential).
+          Purpose: payment-method, instalment and cash-collected analysis. **Payment-based** - never
+          combine with item-based sales ({{ doc("rule_revenue_separation") }}). Payments belong to an
+          order, not to a seller or product. Identical payment rows within an order (614) are kept
+          as legitimate (Q-10).
+        data_tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [order_id, payment_sequential]
+        columns:
+          - name: order_id
+            description: Primary-key part. FK to `fact_orders.order_id`.
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'fact_orders')", field: order_id}
+          - name: payment_sequential
+            description: Primary-key part; sequence number of the payment within the order.
+            data_tests: [not_null]
+          - name: payment_type
+            description: Payment method as recorded (e.g. `credit_card`, `boleto`, `voucher`, `debit_card`, `not_defined`).
+          - name: payment_installments
+            description: Number of instalments; a recorded 0 is kept (D-16 / Q-07) and flagged `dq_installments_zero`.
+          - name: payment_value
+            description: Amount paid in this transaction (`numeric(12,2)`).
+          - name: dq_payment_zero
+            description: "`payment_value = 0` (9 rows). Kept; exclude from average-ticket statistics."
+          - name: dq_installments_zero
+            description: Credit-card payment with 0 instalments (2 rows, Q-07). Kept in payment totals; excluded only from instalment statistics (D-16).
+          - name: customer_unique_id
+            description: '{{ doc("col_customer_unique_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_customers')", field: customer_unique_id}
+          - name: order_status
+            description: '{{ doc("col_order_status") }}'
+          - name: order_purchase_timestamp
+            description: '{{ doc("col_order_purchase_timestamp") }}'
+          - name: purchase_date
+            description: '{{ doc("col_purchase_date") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_dates')", field: date}
+          - name: in_candidate_window
+            description: '{{ doc("col_in_candidate_window") }}'
+
+      - name: fact_reviews
+        description: >
+          **Grain: one review-order link** (99,224 rows); primary key (review_id, order_id).
+          `review_id` alone is NOT unique (98,410 distinct, D-07): a review can be linked to several
+          orders. Purpose: customer-satisfaction analysis; count reviews with distinct `review_id`.
+          {{ doc("rule_reviews_grain") }} Reviews belong to an order, never to a seller.
+        data_tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [review_id, order_id]
+        columns:
+          - name: review_id
+            description: Primary-key part. Not unique on its own (shared reviews, `dq_review_id_shared`).
+            data_tests: [not_null]
+          - name: order_id
+            description: Primary-key part. FK to `fact_orders.order_id`.
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'fact_orders')", field: order_id}
+          - name: review_score
+            description: Score 1-5 of this review-order link. Do not average it into an order-level score (Q-04).
+          - name: review_comment_title
+            description: Optional comment title; NULL for 87,656 links (optional field, not a gap).
+          - name: review_comment_message
+            description: Optional comment text; NULL for 58,247 links.
+          - name: review_creation_date
+            description: Review creation (mostly midnight, 85 exceptions, so kept as a timestamp; compared at day level).
+          - name: review_answer_timestamp
+            description: Timestamp of the answer to the review survey.
+          - name: has_comment_title
+            description: A comment title is present.
+          - name: has_comment_message
+            description: A comment message is present.
+          - name: dq_review_id_shared
+            description: The `review_id` is linked to more than one order (D-07; 1,603 rows).
+          - name: dq_review_content_duplicate
+            description: Duplicated review content (D-07; 86 rows). Kept.
+          - name: dq_review_before_purchase
+            description: Review created before the purchase - impossible (D-08 / Q-15; 64). Exclude from timing analyses only.
+          - name: dq_review_before_delivery
+            description: Review created before delivery - plausible, informational (D-08).
+          - name: customer_unique_id
+            description: '{{ doc("col_customer_unique_id") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_customers')", field: customer_unique_id}
+          - name: order_status
+            description: '{{ doc("col_order_status") }}'
+          - name: order_purchase_timestamp
+            description: '{{ doc("col_order_purchase_timestamp") }}'
+          - name: purchase_date
+            description: '{{ doc("col_purchase_date") }}'
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments: {to: "source('warehouse', 'dim_dates')", field: date}
+          - name: in_candidate_window
+            description: '{{ doc("col_in_candidate_window") }}'
+          - name: order_delivered_customer_date
+            description: Delivery date of the order (denormalised from fact_orders); NULL for 2,865 links.
+
+      # ------------------------------------------------------------------ dimensions
+      - name: dim_customers
+        description: >
+          **Grain: one person** (`customer_unique_id`, D-01; 96,096 rows). Purpose: person-level
+          customer analytics - RFM inputs, cohorts, retention, historical value. Measures come in two
+          labelled variants: all orders, and `*_delivered` ({{ doc("rule_delivered_variant") }}).
+          {{ doc("rule_full_history") }} There is no person-level address: location varies by order
+          (see `fact_orders`). Item-based and payment-based totals are separate columns (Q-03).
+        columns:
+          - name: customer_unique_id
+            description: Primary key - the person.
+            data_tests: [unique, not_null]
+          - name: n_customer_ids
+            description: Number of per-order `customer_id`s of the person (= number of orders, D-01).
+          - name: n_distinct_zips
+            description: Distinct zip prefixes across the person's orders.
+          - name: n_distinct_states
+            description: Distinct states across the person's orders.
+          - name: first_purchase_ts
+            description: First purchase timestamp.
+          - name: last_purchase_ts
+            description: Last purchase timestamp.
+          - name: cohort_month
+            description: Month of the first purchase, `YYYY-MM`.
+          - name: n_orders
+            description: Orders of the person (all statuses).
+          - name: n_items
+            description: Source item rows across all orders (sum of `fact_orders.item_count`).
+          - name: items_price_total
+            description: Item-based value over all orders; NULL for 676 persons without items.
+          - name: items_freight_total
+            description: Item-based freight over all orders; NULL without items.
+          - name: payment_total
+            description: Payment-based value over all orders; NULL for 1 person without payment. Not combined with items (Q-03).
+          - name: n_orders_delivered
+            description: Orders with status `delivered`.
+          - name: n_items_delivered
+            description: Item rows of delivered orders.
+          - name: items_price_total_delivered
+            description: Item-based value of delivered orders; NULL for 2,738 persons.
+          - name: items_freight_total_delivered
+            description: Item-based freight of delivered orders; NULL for 2,738 persons.
+          - name: payment_total_delivered
+            description: Payment-based value of delivered orders; NULL for 2,739 persons.
+          - name: first_delivered_purchase_ts
+            description: First purchase timestamp among delivered orders; NULL for 2,738 persons without a delivered order.
+          - name: last_delivered_purchase_ts
+            description: Last purchase timestamp among delivered orders.
+
+      - name: dim_products
+        description: >
+          **Grain: one product** (32,951 rows). Purpose: product attributes, category labels from the
+          project-owned category mapping (D-12) and quality flags. Raw values are kept; missing
+          metadata is flagged, never imputed (D-06). Quality flags are flags only - no exclusion or
+          correction (Q-06).
+        columns:
+          - name: product_id
+            description: Primary key.
+            data_tests: [unique, not_null]
+          - name: product_category_name
+            description: Raw (Portuguese) category name; NULL for 610 products without a category.
+          - name: category_en_clean
+            description: English category from the category mapping (D-12); NULL for the 610 uncategorised products.
+          - name: category_reporting
+            description: '{{ doc("col_category_reporting") }}'
+            data_tests: [not_null]
+          - name: product_name_length
+            description: Characters in the product name (source column renamed from `*_lenght`, D-05); NULL for 610.
+          - name: product_description_length
+            description: Characters in the description; NULL for 610.
+          - name: product_photos_qty
+            description: Number of photos; NULL for 610.
+          - name: product_weight_g
+            description: Weight in grams as recorded; NULL for 2 (4 zero weights kept, flagged `dq_weight_zero`).
+          - name: weight_g_valid
+            description: Weight for analysis - NULL where missing or zero (6 products).
+          - name: product_length_cm
+            description: Length in cm; NULL for 2.
+          - name: product_height_cm
+            description: Height in cm; NULL for 2.
+          - name: product_width_cm
+            description: Width in cm; NULL for 2.
+          - name: dq_missing_category
+            description: Category missing in the source (610).
+          - name: dq_missing_name_length
+            description: Name length missing.
+          - name: dq_missing_description_length
+            description: Description length missing.
+          - name: dq_missing_photos_qty
+            description: Photo count missing.
+          - name: dq_missing_weight_g
+            description: Weight missing.
+          - name: dq_missing_length_cm
+            description: Length missing.
+          - name: dq_missing_height_cm
+            description: Height missing.
+          - name: dq_missing_width_cm
+            description: Width missing.
+          - name: dq_listing_metadata_missing
+            description: All four listing fields (category, name length, description length, photos) missing (610).
+          - name: dq_physical_attributes_missing
+            description: All four physical attributes (weight, length, height, width) missing.
+          - name: dq_all_attributes_missing
+            description: All eight listing and physical fields missing.
+          - name: dq_weight_zero
+            description: Recorded weight is 0 g - invalid (4 products); `weight_g_valid` is NULL.
+          - name: dq_density_suspicious
+            description: Density > 2 g/cm3 - heuristic screen, suspicious only (159; Q-06).
+          - name: dq_dims_16x2x11
+            description: Dimensions exactly 16x2x11 cm - possible default/packaging convention, not verified (588; Q-06).
+
+      - name: dim_sellers
+        description: >
+          **Grain: one seller** (3,095 rows). Purpose: seller location and quality flags. Seller
+          measures are item-based only ({{ doc("rule_no_seller_attribution") }})
+        columns:
+          - name: seller_id
+            description: Primary key.
+            data_tests: [unique, not_null]
+          - name: seller_zip_code_prefix
+            description: 5-digit zip prefix, leading zeros preserved (D-04; CHECK `^[0-9]{5}$`).
+          - name: seller_city
+            description: City as recorded (raw value kept).
+          - name: city_key
+            description: Standardised city key (D-11). 24 malformed raw values are flagged, not repaired.
+          - name: seller_state_std
+            description: Standardised seller state.
+          - name: dq_city_malformed
+            description: Raw city is malformed (state suffix, number, e-mail; 24; Q-12). Use zip / state for geography.
+          - name: lat_centroid
+            description: Zip-prefix centroid latitude (D-10); NULL for 7 sellers.
+          - name: lng_centroid
+            description: Zip-prefix centroid longitude; NULL for 7 sellers.
+          - name: dq_no_geolocation
+            description: No geolocation for the zip prefix.
+
+      - name: dim_dates
+        description: >
+          **Grain: one calendar day**, contiguous from the first to the last event date (2016-09-04 to
+          2020-04-09; 1,314 rows). Purpose: calendar for time series, seasonality and forecasting.
+          The range extends beyond the last purchase (2018-10-17) because it covers all event dates
+          (e.g. shipping deadlines); `analytics.sales_daily` limits itself to the purchase range.
+        columns:
+          - name: date
+            description: Primary key; calendar day (`date`). Target of every fact's `purchase_date`.
+            data_tests: [unique, not_null]
+          - name: year
+            description: Calendar year.
+          - name: quarter
+            description: Calendar quarter (1-4).
+          - name: month
+            description: Calendar month (1-12).
+          - name: year_month
+            description: "`YYYY-MM`."
+          - name: iso_year
+            description: ISO-8601 year.
+          - name: iso_week
+            description: ISO-8601 week number.
+          - name: day_of_week
+            description: ISO day of the week, Monday = 1 ... Sunday = 7.
+          - name: day_name
+            description: English day name.
+          - name: is_weekend
+            description: "`day_of_week >= 6` (Saturday or Sunday)."
+          - name: in_candidate_window
+            description: Day's month is inside the Q-11 candidate window (2017-01 to 2018-08).
+
+      # ------------------------------------------------------------------ lineage
+      - name: load_run
+        description: >
+          **Grain: one committed warehouse load** (decision Q1). Lineage metadata, not a Gold table:
+          which Gold run (`gold_run_id`, verified manifest, per-table row counts and content hashes)
+          the warehouse currently holds. A load is a single transaction (W-13), so a failed load leaves
+          no row and there is no status column. Written by `load-warehouse`; `validate-load` compares
+          the warehouse with Gold. The most recent row (by `finished_at`) describes the current
+          warehouse contents.
+        columns:
+          - name: load_id
+            description: Primary key of the load.
+            data_tests: [unique, not_null]
+          - name: gold_run_id
+            description: Run id of the analytical (Gold) build that was loaded.
+            data_tests: [not_null]
+          - name: gold_manifest_path
+            description: Path of the Gold run manifest that was verified before loading.
+          - name: gold_manifest_sha256
+            description: SHA-256 of that manifest file.
+          - name: row_counts
+            description: "JSON `{table: rows}` loaded per warehouse table."
+          - name: content_hashes
+            description: "JSON `{table: Gold content_sha256}` of the loaded Parquet outputs."
+          - name: started_at
+            description: Load start, `timestamptz` from the load-process clock - not a source event time.
+          - name: finished_at
+            description: Load commit time (`timestamptz`). Not used for freshness - see the source overview.

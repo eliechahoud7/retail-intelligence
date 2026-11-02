@@ -39,3 +39,11 @@ models:
     marts:
       +schema: dbt_marts
       +materialized: table
+
+# Data tests are plain SELECTs and store nothing (store_failures is off). dbt still assigns every test
+# a schema - by default `dbt_test__audit`, which generate_schema_name refuses - so tests are pinned to
+# an allowed dbt schema. If store_failures is ever enabled, failure tables land in dbt_staging, never
+# in warehouse or analytics.
+data_tests:
+  retail_intelligence:
+    +schema: dbt_staging
