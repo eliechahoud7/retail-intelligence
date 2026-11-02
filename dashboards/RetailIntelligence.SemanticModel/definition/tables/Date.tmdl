@@ -1,0 +1,104 @@
+/// Calendar dimension: warehouse.dim_dates (one row per day), limited to the order purchase period
+/// (2016-09-04 to 2018-10-31). Marked as the model's date table; related to Orders[Purchase Date].
+table Date
+	lineageTag: b0b1fdd7-b21b-4072-88b3-5db8de99407b
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: yyyy-mm-dd
+		lineageTag: 66aff2ea-3a34-4630-944a-0d5a5daa5d6f
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: 94da4aa7-ae3d-4a70-971a-37b9b275baeb
+		summarizeBy: none
+		sourceColumn: year
+
+	column Quarter
+		dataType: int64
+		formatString: 0
+		lineageTag: 7a084f2a-3f71-4cf2-99bd-7cd0772b21b4
+		summarizeBy: none
+		sourceColumn: quarter
+
+	column 'Month Number'
+		dataType: int64
+		formatString: 0
+		lineageTag: 396dbdf5-e807-4cef-95fa-977178706c32
+		summarizeBy: none
+		sourceColumn: month
+
+	/// Purchase month as YYYY-MM (sorts chronologically as text).
+	column 'Year Month'
+		dataType: string
+		lineageTag: 3ed44f07-7938-4c87-9b43-b31008895669
+		summarizeBy: none
+		sourceColumn: year_month
+
+	column 'Month Name'
+		dataType: string
+		lineageTag: 46ac7d16-ff27-43f5-a05c-6571e951ace9
+		summarizeBy: none
+		sourceColumn: month_name
+		sortByColumn: 'Month Number'
+
+	column 'Day Name'
+		dataType: string
+		lineageTag: d76d49f9-3d2a-47d6-829e-8caca5a32f90
+		summarizeBy: none
+		sourceColumn: day_name
+		sortByColumn: 'Day of Week'
+
+	column 'Day of Week'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: c92eaf7b-e7bc-4165-bfdb-b5bfbfa19647
+		summarizeBy: none
+		sourceColumn: day_of_week
+
+	column 'Is Weekend'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 1428ee3b-bb20-4dbe-8b9e-592dc675cfd2
+		summarizeBy: none
+		sourceColumn: is_weekend
+
+	/// Q-11 candidate analysis window (2017-01-01 to 2018-08-31). A flag, never a default filter.
+	column 'In Candidate Window'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: bc6c94e0-ec92-460a-aaa6-cb56915d45f1
+		summarizeBy: none
+		sourceColumn: in_candidate_window
+
+	/// Readable label for the Q-11 window slicer.
+	column 'Analysis Window'
+		dataType: string
+		lineageTag: dae7666e-6077-4e1a-8298-89b4c0642509
+		summarizeBy: none
+		sourceColumn: analysis_window
+
+	partition Date = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    DimDates = Source{[Schema = "warehouse", Item = "dim_dates"]}[Data],
+				    Kept = Table.SelectColumns(DimDates, {"date", "year", "quarter", "month", "year_month", "day_of_week", "day_name", "is_weekend", "in_candidate_window"}),
+				    PurchasePeriod = Table.SelectRows(Kept, each [date] <= #date(2018, 10, 31)),
+				    Typed = Table.TransformColumnTypes(PurchasePeriod, {{"date", type date}, {"year", Int64.Type}, {"quarter", Int64.Type}, {"month", Int64.Type}, {"year_month", type text}, {"day_of_week", Int64.Type}, {"day_name", type text}, {"is_weekend", type logical}, {"in_candidate_window", type logical}}),
+				    MonthName = Table.AddColumn(Typed, "month_name", each Date.ToText([date], "MMM", "en-US"), type text),
+				    Window = Table.AddColumn(MonthName, "analysis_window", each if [in_candidate_window] then "Candidate window (2017-01 to 2018-08)" else "Outside candidate window", type text)
+				in
+				    Window
+
+	annotation PBI_ResultType = Table
+

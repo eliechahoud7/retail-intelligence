@@ -1,0 +1,4 @@
+# Power BI Project (PBIP) local artefacts - created by Power BI Desktop, never versioned
+# cache.abf holds the imported data; localSettings.json holds machine-specific settings.
+**/.pbi/localSettings.json
+**/.pbi/cache.abf

@@ -1,0 +1,39 @@
+/// Product dimension: warehouse.dim_products (one row per product_id). Related to Order Lines only.
+table Products
+	lineageTag: d51bb9c4-0c8a-4254-8a0e-5af1e181f204
+
+	column 'Product ID'
+		dataType: string
+		isKey
+		lineageTag: 2b73afa5-5e29-4c4e-a4ad-e9f1ad9fe457
+		summarizeBy: none
+		sourceColumn: product_id
+
+	/// Reporting category (English, cleaned; 74 values, "unknown" when missing).
+	column Category
+		dataType: string
+		lineageTag: 88831d69-33ae-4a7a-aeff-20f655d49159
+		summarizeBy: none
+		sourceColumn: category_reporting
+
+	/// TRUE when the listing metadata (name, description, photos) is missing in the source (D-06 flag).
+	column 'Listing Metadata Missing'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: d069155d-e7b1-47e6-9e34-312e39fc4854
+		summarizeBy: none
+		sourceColumn: dq_listing_metadata_missing
+
+	partition Products = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    DimProducts = Source{[Schema = "warehouse", Item = "dim_products"]}[Data],
+				    Kept = Table.SelectColumns(DimProducts, {"product_id", "category_reporting", "dq_listing_metadata_missing"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"product_id", type text}, {"category_reporting", type text}, {"dq_listing_metadata_missing", type logical}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

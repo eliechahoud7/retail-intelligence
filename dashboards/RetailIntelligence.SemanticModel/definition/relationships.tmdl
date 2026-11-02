@@ -1,0 +1,28 @@
+relationship rel_orders_date
+	fromColumn: Orders.'Purchase Date'
+	toColumn: Date.Date
+
+relationship rel_orders_customers
+	fromColumn: Orders.'Customer ID'
+	toColumn: Customers.'Customer ID'
+
+relationship rel_lines_orders
+	fromColumn: 'Order Lines'.'Order ID'
+	toColumn: Orders.'Order ID'
+
+relationship rel_lines_products
+	fromColumn: 'Order Lines'.'Product ID'
+	toColumn: Products.'Product ID'
+
+relationship rel_lines_sellers
+	fromColumn: 'Order Lines'.'Seller ID'
+	toColumn: Sellers.'Seller ID'
+
+relationship rel_payments_orders
+	fromColumn: Payments.'Order ID'
+	toColumn: Orders.'Order ID'
+
+relationship rel_reviews_orders
+	fromColumn: Reviews.'Order ID'
+	toColumn: Orders.'Order ID'
+

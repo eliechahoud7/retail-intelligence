@@ -17,11 +17,12 @@ Each command exits non-zero on failure, which fails the task; downstream tasks t
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import DAG
 
-PROJECT = "/mnt/c/Users/Admin/Desktop/retail-intelligence"
+PROJECT = str(Path(__file__).resolve().parents[2])  # project root: this file is <root>/airflow/dags/
 WIN_PY = ".venv/Scripts/python.exe"                 # Windows project environment, via WSL interop
 SPARK_PY = "$HOME/venvs/retail-spark/bin/python"    # Spark environment in WSL
 

@@ -1,0 +1,226 @@
+/// Customer dimension: one row per person (warehouse.dim_customers, key customer_unique_id, D-01), enriched
+/// with the approved RFM snapshot (src/database/sql/queries/customers/05_customer_rfm.sql, delivered scope,
+/// reference date RfmReferenceDate = 2018-08-31) and the Phase 9 segment rules
+/// (reports/customer_analytics/customer_analytics_report.md). RFM is descriptive and is NOT recalculated
+/// by report filters: it is a snapshot as of the reference date.
+table Customers
+	lineageTag: 8559c4e6-4b3f-46ad-81ef-2525d548b5c0
+
+	column 'Customer ID'
+		dataType: string
+		isHidden
+		isKey
+		lineageTag: 80945695-8806-429d-aa63-b3602a972401
+		summarizeBy: none
+		sourceColumn: customer_unique_id
+
+	/// Month of the person's first order (any status), YYYY-MM.
+	column 'Cohort Month'
+		dataType: string
+		lineageTag: 4b6a5ca3-927c-4469-9bee-15308e58d375
+		summarizeBy: none
+		sourceColumn: cohort_month
+
+	column 'First Purchase'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:nn
+		lineageTag: 4d36cb5c-5557-41b4-9e5e-a8bc8881b2b7
+		summarizeBy: none
+		sourceColumn: first_purchase_ts
+
+	column 'Last Purchase'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:nn
+		lineageTag: 6258407f-5ce5-4e34-a8b3-cfc2c6a5ef6d
+		summarizeBy: none
+		sourceColumn: last_purchase_ts
+
+	/// Lifetime number of orders of any status (dim_customers.n_orders).
+	column 'Lifetime Orders'
+		dataType: int64
+		formatString: #,0
+		lineageTag: 8cfc45c4-13aa-49e0-a59d-5dac792e7f48
+		summarizeBy: none
+		sourceColumn: n_orders
+
+	/// Lifetime item revenue of all orders (item-based, Q-03; freight excluded).
+	column 'Lifetime Item Revenue'
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: f6bc147b-88a8-4bc6-bf85-8dfb42be0c11
+		summarizeBy: sum
+		sourceColumn: items_price_total
+
+	/// "One-time" (1 order) or "Repeat" (2+ orders), all statuses.
+	column 'Customer Type'
+		dataType: string
+		lineageTag: cf0efb7d-e70f-481c-8162-cb2114fd56c8
+		summarizeBy: none
+		sourceColumn: customer_type
+
+	/// Lifetime order count band: 1, 2, 3, 4+.
+	column 'Order Count Band'
+		dataType: string
+		lineageTag: 07f7ada6-e302-470f-af79-749c45763b4f
+		summarizeBy: none
+		sourceColumn: order_count_band
+		sortByColumn: 'Order Count Band Sort'
+
+	column 'Order Count Band Sort'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 5dfff79c-dbb7-49cb-ae70-375aaeb981e9
+		summarizeBy: none
+		sourceColumn: order_count_band_sort
+
+	/// TRUE when the person has at least one eligible (delivered, with items) order on or before the
+	/// RFM reference date.
+	column 'Has Eligible Purchase'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 1d5af01a-f850-45b8-abc2-17e3084569ba
+		summarizeBy: none
+		sourceColumn: has_eligible_purchase
+
+	/// Days from the last eligible purchase to the reference date.
+	column 'Recency Days'
+		dataType: int64
+		formatString: #,0
+		lineageTag: 596691d8-4017-4984-9074-f3990da04140
+		summarizeBy: none
+		sourceColumn: recency_days
+
+	/// Number of eligible orders up to the reference date.
+	column Frequency
+		dataType: int64
+		formatString: #,0
+		lineageTag: 6cbbb30f-9b65-4662-804b-84bf20ae0042
+		summarizeBy: none
+		sourceColumn: frequency
+
+	/// Item revenue of eligible orders up to the reference date (historical CLV, freight excluded).
+	column Monetary
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: 4981d3cc-1339-4e04-8b8b-bc1e1cf8a3f8
+		summarizeBy: sum
+		sourceColumn: monetary
+
+	column 'R Score'
+		dataType: int64
+		formatString: 0
+		lineageTag: 28c287e2-a10b-4484-805b-37efbbe09916
+		summarizeBy: none
+		sourceColumn: r_score
+
+	column 'F Score'
+		dataType: int64
+		formatString: 0
+		lineageTag: 6c46faa5-8a04-4fe8-b5c9-4847a2fe653b
+		summarizeBy: none
+		sourceColumn: f_score
+
+	column 'M Score'
+		dataType: int64
+		formatString: 0
+		lineageTag: 22c0215b-9a5e-473d-a238-f2a29cf1ec31
+		summarizeBy: none
+		sourceColumn: m_score
+
+	column 'RFM Cell'
+		dataType: string
+		lineageTag: ed5b7b8d-4164-4cde-936e-588fa3ffeae2
+		summarizeBy: none
+		sourceColumn: rfm_cell
+
+	/// Phase 9 segment: Champions, Loyal Customers, At Risk (2+ eligible orders); Potential Loyalists,
+	/// Needs Attention, Inactive (1 eligible order); otherwise "No eligible purchase" or
+	/// "After reference date" (first order after the reference date).
+	column 'RFM Segment'
+		dataType: string
+		lineageTag: 66441b0a-b2b2-4181-baf1-469dfbd6ec6a
+		summarizeBy: none
+		sourceColumn: rfm_segment
+		sortByColumn: 'RFM Segment Sort'
+
+	column 'RFM Segment Sort'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 1455ea5d-bf5a-4947-b074-a6a335bde5a9
+		summarizeBy: none
+		sourceColumn: rfm_segment_sort
+
+	/// "Repeat (2+ orders)" or "One-time (1 order)" by eligible frequency; segment group of the RFM rules.
+	column 'RFM Group'
+		dataType: string
+		lineageTag: 79007c15-1dac-4b61-a35e-d64c327ded99
+		summarizeBy: none
+		sourceColumn: rfm_group
+
+	partition Customers = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    DimCustomers = Source{[Schema = "warehouse", Item = "dim_customers"]}[Data],
+				    Kept = Table.SelectColumns(DimCustomers, {"customer_unique_id", "cohort_month", "first_purchase_ts", "last_purchase_ts", "n_orders", "items_price_total"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"customer_unique_id", type text}, {"cohort_month", type text}, {"first_purchase_ts", type datetime}, {"last_purchase_ts", type datetime}, {"n_orders", Int64.Type}, {"items_price_total", Currency.Type}}),
+				    // Approved query customer_rfm (05_customer_rfm.sql), bound to order_scope = 'delivered' and the reference date
+				    RefDate = "CAST('" & RfmReferenceDate & "' AS date)",
+				    RfmSql = "
+				WITH population AS (
+				    SELECT customer_unique_id, count(*) AS n_orders_to_date
+				    FROM warehouse.fact_orders
+				    WHERE purchase_date <= " & RefDate & "
+				    GROUP BY customer_unique_id
+				), eligible AS (
+				    SELECT customer_unique_id,
+				           max(purchase_date)     AS last_eligible_purchase_date,
+				           count(*)               AS frequency,
+				           sum(items_price_total) AS monetary
+				    FROM warehouse.fact_orders
+				    WHERE purchase_date <= " & RefDate & "
+				      AND has_items
+				      AND order_status = 'delivered'
+				      AND order_delivered_customer_date::date <= " & RefDate & "
+				    GROUP BY customer_unique_id
+				), scored AS (
+				    SELECT *,
+				           " & RefDate & " - last_eligible_purchase_date AS recency_days,
+				           least(5, 1 + floor(5 * percent_rank() OVER (ORDER BY " & RefDate & " - last_eligible_purchase_date DESC)))::int AS r_score,
+				           least(5, 1 + floor(5 * percent_rank() OVER (ORDER BY frequency)))::int AS f_score,
+				           least(5, 1 + floor(5 * percent_rank() OVER (ORDER BY monetary)))::int  AS m_score
+				    FROM eligible
+				)
+				SELECT p.customer_unique_id,
+				       s.customer_unique_id IS NOT NULL AS has_eligible_purchase,
+				       s.recency_days, s.frequency, s.monetary, s.r_score, s.f_score, s.m_score,
+				       s.r_score::text || s.f_score::text || s.m_score::text AS rfm_cell
+				FROM population p
+				LEFT JOIN scored s ON s.customer_unique_id = p.customer_unique_id",
+				    Rfm = Value.NativeQuery(Source, RfmSql, null, [EnableFolding = false]),
+				    RfmTyped = Table.TransformColumnTypes(Rfm, {{"customer_unique_id", type text}, {"has_eligible_purchase", type logical}, {"recency_days", Int64.Type}, {"frequency", Int64.Type}, {"monetary", Currency.Type}, {"r_score", Int64.Type}, {"f_score", Int64.Type}, {"m_score", Int64.Type}, {"rfm_cell", type text}}),
+				    Joined = Table.NestedJoin(Typed, {"customer_unique_id"}, RfmTyped, {"customer_unique_id"}, "rfm", JoinKind.LeftOuter),
+				    Expanded = Table.ExpandTableColumn(Joined, "rfm", {"has_eligible_purchase", "recency_days", "frequency", "monetary", "r_score", "f_score", "m_score", "rfm_cell"}),
+				    InPopulation = Table.AddColumn(Expanded, "in_population", each [has_eligible_purchase] <> null, type logical),
+				    Eligible = Table.ReplaceValue(InPopulation, null, false, Replacer.ReplaceValue, {"has_eligible_purchase"}),
+				    Segment = Table.AddColumn(Eligible, "rfm_segment", each
+				        if not [in_population] then "After reference date"
+				        else if not [has_eligible_purchase] then "No eligible purchase"
+				        else if [frequency] >= 2 then
+				            (if [r_score] >= 4 and [m_score] >= 4 then "Champions" else if [r_score] >= 3 then "Loyal Customers" else "At Risk")
+				        else
+				            (if [r_score] >= 4 then "Potential Loyalists" else if [r_score] = 3 then "Needs Attention" else "Inactive"), type text),
+				    SegmentSort = Table.AddColumn(Segment, "rfm_segment_sort", each List.PositionOf({"Champions", "Loyal Customers", "At Risk", "Potential Loyalists", "Needs Attention", "Inactive", "No eligible purchase", "After reference date"}, [rfm_segment]) + 1, Int64.Type),
+				    Group = Table.AddColumn(SegmentSort, "rfm_group", each if not [has_eligible_purchase] then "Not scored" else if [frequency] >= 2 then "Repeat (2+ orders)" else "One-time (1 order)", type text),
+				    CustomerType = Table.AddColumn(Group, "customer_type", each if [n_orders] >= 2 then "Repeat" else "One-time", type text),
+				    Band = Table.AddColumn(CustomerType, "order_count_band", each if [n_orders] >= 4 then "4+" else Text.From([n_orders]), type text),
+				    BandSort = Table.AddColumn(Band, "order_count_band_sort", each List.Min({[n_orders], 4}), Int64.Type),
+				    Result = Table.RemoveColumns(BandSort, {"in_population"})
+				in
+				    Result
+
+	annotation PBI_ResultType = Table
+

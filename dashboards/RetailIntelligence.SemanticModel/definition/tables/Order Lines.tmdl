@@ -1,0 +1,77 @@
+/// Order line fact: warehouse.fact_order_lines, one row per order line (order x product x seller x price,
+/// D-15; 102,425 rows, 112,650 units). Source of ITEM-BASED revenue (Q-03): line price total excludes
+/// freight. Filtered by Orders (order_id), Products and Sellers; never joined to Payments.
+table 'Order Lines'
+	lineageTag: fe34519d-f0d3-4f7d-9ecc-96e60ee1dfef
+
+	column 'Order Line ID'
+		dataType: string
+		isHidden
+		isKey
+		lineageTag: ac36a1e8-07fe-432b-8a95-1a44f1fc5d75
+		summarizeBy: none
+		sourceColumn: order_line_id
+
+	column 'Order ID'
+		dataType: string
+		isHidden
+		lineageTag: fc8d9271-f6c4-41ca-8cb8-d34de8643023
+		summarizeBy: none
+		sourceColumn: order_id
+
+	column 'Product ID'
+		dataType: string
+		isHidden
+		lineageTag: 279603b3-4440-4afc-b7ab-37fc091450bf
+		summarizeBy: none
+		sourceColumn: product_id
+
+	column 'Seller ID'
+		dataType: string
+		isHidden
+		lineageTag: be499aaf-77c4-4acd-a03e-910fd6257a0b
+		summarizeBy: none
+		sourceColumn: seller_id
+
+	column Quantity
+		dataType: int64
+		formatString: #,0
+		lineageTag: 4f3aa740-3fed-4430-8030-cc4e6c1bca8c
+		summarizeBy: sum
+		sourceColumn: quantity
+
+	column 'Unit Price'
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: aea1bd40-9fdf-482a-a501-e4b125cf3184
+		summarizeBy: none
+		sourceColumn: unit_price
+
+	/// quantity x unit price (item revenue, freight excluded).
+	column 'Line Price Total'
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: b5c6553b-e216-4563-a911-f3918a65469a
+		summarizeBy: sum
+		sourceColumn: line_price_total
+
+	column 'Freight Total'
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: 295e4bf2-e50f-4e3d-813a-3fa93ade65ae
+		summarizeBy: sum
+		sourceColumn: freight_total
+
+	partition 'Order Lines' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    FactLines = Source{[Schema = "warehouse", Item = "fact_order_lines"]}[Data],
+				    Kept = Table.SelectColumns(FactLines, {"order_line_id", "order_id", "product_id", "seller_id", "quantity", "unit_price", "line_price_total", "freight_total"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"order_line_id", type text}, {"order_id", type text}, {"product_id", type text}, {"seller_id", type text}, {"quantity", Int64.Type}, {"unit_price", Currency.Type}, {"line_price_total", Currency.Type}, {"freight_total", Currency.Type}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

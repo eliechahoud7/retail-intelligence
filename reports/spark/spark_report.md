@@ -11,7 +11,7 @@ Spark adds a second engine next to the existing pandas pipeline. It replaces not
 Native Windows Spark cannot write Parquet without third-party `winutils` binaries (`HADOOP_HOME and hadoop.home.dir are unset`), so Spark runs in WSL2. One-time setup (root): `apt-get install openjdk-17-jre-headless python3.12-venv`; then `python3.12 -m venv ~/venvs/retail-spark` and `pip install -r requirements-spark.txt`. `JAVA_HOME` is set in `~/.profile`.
 
 ```bash
-# WSL2, from /mnt/c/Users/Admin/Desktop/retail-intelligence
+# WSL2, from the project root (the Windows folder seen from WSL, e.g. /mnt/c/path/to/retail-intelligence)
 PY=~/venvs/retail-spark/bin/python
 $PY -m src.spark.jobs                               # 3 workloads -> data/processed/spark/results/
 $PY -m unittest tests.test_spark                    # business-rule tests on tiny inputs

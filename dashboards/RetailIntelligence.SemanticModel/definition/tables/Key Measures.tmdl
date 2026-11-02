@@ -1,0 +1,362 @@
+/// Home table for all report measures (no data). Measures are grouped in display folders by subject.
+/// Revenue rules: item revenue (Order Lines) and payment value (Payments) are separate measures and are never
+/// added, subtracted or divided by each other (Q-03).
+table 'Key Measures'
+	lineageTag: 76db86c7-81f4-4a7c-9e8b-d26393a74850
+
+	/// Item-based revenue: sum of line price totals (quantity x unit price), freight excluded (Q-03).
+	measure 'Item Revenue' = SUM('Order Lines'[Line Price Total])
+		formatString: R$ #,0
+		displayFolder: Sales
+		lineageTag: abc6df36-f431-478e-89a1-52b88baabb48
+
+	/// Item revenue of orders whose current status is 'delivered'.
+	measure 'Item Revenue (Delivered)' = CALCULATE([Item Revenue], Orders[Order Status Code] = "delivered")
+		formatString: R$ #,0
+		displayFolder: Sales
+		lineageTag: 42be7ede-dc97-468d-8c1b-1a95b6c4a344
+
+	/// Freight charged on order lines (item-based, reported separately from item revenue).
+	measure 'Freight Value' = SUM('Order Lines'[Freight Total])
+		formatString: R$ #,0
+		displayFolder: Sales
+		lineageTag: 4c423950-f4e0-4cd8-b90a-d41c47a28d87
+
+	measure 'Units Sold' = SUM('Order Lines'[Quantity])
+		formatString: #,0
+		displayFolder: Sales
+		lineageTag: e6886c92-a0ef-44dc-b1a0-1b91add747e5
+
+	/// Distinct orders that have at least one order line in the current filter context (responds to
+	/// product, category and seller filters).
+	measure 'Orders with Items' = DISTINCTCOUNT('Order Lines'[Order ID])
+		formatString: #,0
+		displayFolder: Sales
+		lineageTag: 07422684-48f5-486b-8b6c-54e361a45e27
+
+	/// Average order value (item-based): Item Revenue / Orders with Items. Freight and payments excluded.
+	measure 'Average Order Value' = DIVIDE([Item Revenue], [Orders with Items])
+		formatString: R$ #,0.00
+		displayFolder: Sales
+		lineageTag: e974a7cd-1c25-42b7-ae1f-32ae3d3709f6
+
+	measure 'Average Unit Price' = DIVIDE([Item Revenue], [Units Sold])
+		formatString: R$ #,0.00
+		displayFolder: Sales
+		lineageTag: ecd7af8f-01be-466b-a659-7e7c3f802e3a
+
+	measure 'Active Sellers' = DISTINCTCOUNT('Order Lines'[Seller ID])
+		formatString: #,0
+		displayFolder: Sales
+		lineageTag: 1034a7b6-eee1-4e17-911d-05d5b841a44a
+
+	measure 'Products Sold' = DISTINCTCOUNT('Order Lines'[Product ID])
+		formatString: #,0
+		displayFolder: Sales
+		lineageTag: 856dab38-8361-4385-a00b-152880e0b1e2
+
+	/// Share of item revenue across all products and sellers, keeping the other filters.
+	measure 'Item Revenue Share' = DIVIDE([Item Revenue], CALCULATE([Item Revenue], REMOVEFILTERS(Products), REMOVEFILTERS(Sellers)))
+		formatString: 0.0%
+		displayFolder: Sales
+		lineageTag: 2c250382-4443-473f-ab3c-ed527f9bc1d1
+
+	/// Item revenue of the same period one year earlier (Date table).
+	measure 'Item Revenue PY' = CALCULATE([Item Revenue], SAMEPERIODLASTYEAR('Date'[Date]))
+		formatString: R$ #,0
+		displayFolder: Sales
+		lineageTag: 5da31006-1a69-424b-8515-83dc1702e3b1
+
+	/// Year-over-year change of item revenue; blank when the prior period has no revenue.
+	measure 'Item Revenue YoY %' =
+			VAR PY = [Item Revenue PY]
+			RETURN IF(NOT ISBLANK(PY), DIVIDE([Item Revenue] - PY, PY))
+		formatString: +0.0%;-0.0%;0.0%
+		displayFolder: Sales
+		lineageTag: a45c8613-b4a9-4008-84af-bd6dcdf75d78
+
+	/// All orders in the filter context (any status). Not affected by product or seller filters.
+	measure 'Total Orders' = COUNTROWS(Orders)
+		formatString: #,0
+		displayFolder: Orders
+		lineageTag: e332ee68-e85f-42c7-9c61-79fa58c887dd
+
+	measure 'Delivered Orders' = CALCULATE([Total Orders], Orders[Order Status Code] = "delivered")
+		formatString: #,0
+		displayFolder: Orders
+		lineageTag: be91b4c9-b3d7-4c86-891e-7a50af2a3f0f
+
+	measure 'Canceled Orders' = CALCULATE([Total Orders], Orders[Order Status Code] = "canceled")
+		formatString: #,0
+		displayFolder: Orders
+		lineageTag: a0419ced-7c15-44ba-9524-be132a0b1a05
+
+	measure 'Cancellation Rate' = DIVIDE([Canceled Orders], [Total Orders])
+		formatString: 0.00%
+		displayFolder: Orders
+		lineageTag: 9c8abc6c-2742-4cb0-8926-dadb4ae48ea7
+
+	measure 'Delivered Share' = DIVIDE([Delivered Orders], [Total Orders])
+		formatString: 0.0%
+		displayFolder: Orders
+		lineageTag: e0224d45-8b32-43cc-a6e6-7f1df0681bfc
+
+	/// Distinct persons (customer_unique_id, D-01) who placed an order in the filter context.
+	measure 'Purchasing Customers' = DISTINCTCOUNT(Orders[Customer ID])
+		formatString: #,0
+		displayFolder: Orders
+		lineageTag: bc3cb261-4d1e-4a53-af08-c3fe9ddcb949
+
+	/// Persons whose first-ever order falls in the filter context.
+	measure 'New Customers' = CALCULATE(DISTINCTCOUNT(Orders[Customer ID]), Orders[Is First Order] = TRUE())
+		formatString: #,0
+		displayFolder: Orders
+		lineageTag: b29225cc-665a-4e42-91c0-ac55d89d202d
+
+	/// Orders placed by persons who had ordered before (customer order sequence >= 2).
+	measure 'Repeat Orders' = CALCULATE([Total Orders], Orders[Customer Order Sequence] >= 2)
+		formatString: #,0
+		displayFolder: Orders
+		lineageTag: 1b9b44af-24ce-4719-844e-89051cf5ca40
+
+	measure 'Repeat Order Share' = DIVIDE([Repeat Orders], [Total Orders])
+		formatString: 0.00%
+		displayFolder: Orders
+		lineageTag: c185203e-63d0-4738-a628-3b59dfc7b3be
+
+	measure 'Orders per Customer' = DIVIDE([Total Orders], [Purchasing Customers])
+		formatString: 0.000
+		displayFolder: Orders
+		lineageTag: d2ac90b1-5907-438f-898f-ca734926ddf2
+
+	/// Persons in the customer dimension (lifetime view; not filtered by purchase date).
+	measure 'Total Customers' = COUNTROWS(Customers)
+		formatString: #,0
+		displayFolder: Customers
+		lineageTag: ba2ffa28-e6ae-46f8-9db8-fdbac0e62822
+
+	measure 'Repeat Customers' = CALCULATE([Total Customers], Customers[Customer Type] = "Repeat")
+		formatString: #,0
+		displayFolder: Customers
+		lineageTag: 01c6a6f7-7493-4731-81a7-0eb12bc01cd0
+
+	/// Share of persons with 2+ lifetime orders (any status).
+	measure 'Repeat Customer Rate' = DIVIDE([Repeat Customers], [Total Customers])
+		formatString: 0.00%
+		displayFolder: Customers
+		lineageTag: 6470c004-01ba-4789-8d52-2fea221e093c
+
+	measure 'Avg Lifetime Item Revenue' = AVERAGE(Customers[Lifetime Item Revenue])
+		formatString: R$ #,0.00
+		displayFolder: Customers
+		lineageTag: 6e9892d5-4446-4022-9b3f-5d8e70500215
+
+	/// Persons scored by RFM (eligible delivered purchase on or before the reference date).
+	measure 'RFM Customers' = CALCULATE([Total Customers], Customers[Has Eligible Purchase] = TRUE())
+		formatString: #,0
+		displayFolder: Customers\RFM
+		lineageTag: 6d16a64a-9ce8-4598-b17a-820107f2dbe0
+
+	/// Historical CLV: item revenue of eligible orders up to the reference date.
+	measure 'RFM Monetary' = SUM(Customers[Monetary])
+		formatString: R$ #,0
+		displayFolder: Customers\RFM
+		lineageTag: afba002a-9f73-475e-9518-4694c694d010
+
+	measure 'Avg Customer Value' = DIVIDE([RFM Monetary], [RFM Customers])
+		formatString: R$ #,0.00
+		displayFolder: Customers\RFM
+		lineageTag: 55866603-2537-4d9b-bb99-0f31c41bb8b4
+
+	measure 'Avg Recency Days' = AVERAGE(Customers[Recency Days])
+		formatString: #,0
+		displayFolder: Customers\RFM
+		lineageTag: 1da04f16-9a46-48bd-a238-c2e036a7a28d
+
+	measure 'Avg Frequency' = AVERAGE(Customers[Frequency])
+		formatString: 0.000
+		displayFolder: Customers\RFM
+		lineageTag: 5e42f53d-2394-4a05-b276-6ff5f4d77497
+
+	measure 'Segment Customer Share' = DIVIDE([RFM Customers], CALCULATE([RFM Customers], REMOVEFILTERS(Customers[RFM Segment], Customers[RFM Segment Sort], Customers[RFM Group])))
+		formatString: 0.0%
+		displayFolder: Customers\RFM
+		lineageTag: 4e38184d-ac3e-4c9e-a7f4-524b4fe6649e
+
+	measure 'Segment Revenue Share' = DIVIDE([RFM Monetary], CALCULATE([RFM Monetary], REMOVEFILTERS(Customers[RFM Segment], Customers[RFM Segment Sort], Customers[RFM Group])))
+		formatString: 0.0%
+		displayFolder: Customers\RFM
+		lineageTag: 8d377bc9-0c97-47ce-8bf6-2d4ca211ef22
+
+	/// Size of the cohort(s): customers in their first-purchase month (months since first purchase = 0).
+	measure 'Cohort Customers' = CALCULATE(SUM('Customer Cohorts'[Cohort Size]), 'Customer Cohorts'[Months Since First Purchase] = 0)
+		formatString: #,0
+		displayFolder: Customers\Cohorts
+		lineageTag: be1f9981-447e-4081-a47b-820011b72f4f
+
+	/// Active customers / cohort size, weighted across the cohorts in context (mart_customer_cohorts).
+	measure 'Retention Rate' = DIVIDE(SUM('Customer Cohorts'[Active Customers]), SUM('Customer Cohorts'[Cohort Size]))
+		formatString: 0.00%
+		displayFolder: Customers\Cohorts
+		lineageTag: 99512e62-688c-484b-9522-56cde84c38c5
+
+	/// Retention one month after the first purchase.
+	measure 'Month-1 Retention' = CALCULATE([Retention Rate], 'Customer Cohorts'[Months Since First Purchase] = 1)
+		formatString: 0.00%
+		displayFolder: Customers\Cohorts
+		lineageTag: fb904695-b869-48ee-b3bd-f6f231312ef5
+
+	/// Retention rate excluding month 0 (always 100%), for the retention curve.
+	measure 'Retention Rate (after month 0)' = CALCULATE([Retention Rate], KEEPFILTERS('Customer Cohorts'[Months Since First Purchase] >= 1))
+		formatString: 0.00%
+		displayFolder: Customers\Cohorts
+		lineageTag: fdf42d2f-85da-4614-8e2b-701588134d35
+
+	/// D-06 eligible orders: status delivered with a customer delivery date.
+	measure 'Delivery-Eligible Orders' = CALCULATE([Total Orders], Orders[Delivery Eligible] = TRUE())
+		formatString: #,0
+		displayFolder: Delivery
+		lineageTag: 0949f0af-907f-4bb0-8f42-1394bf17adc5
+
+	measure 'Late Orders' = CALCULATE([Total Orders], Orders[Delivery Eligible] = TRUE(), Orders[Is Late] = TRUE())
+		formatString: #,0
+		displayFolder: Delivery
+		lineageTag: 203197f4-a263-473d-b89c-365c14f1b786
+
+	/// Late eligible orders / eligible orders (day-level lateness, as analytics.delivery_monthly).
+	measure 'Late Delivery Rate' = DIVIDE([Late Orders], [Delivery-Eligible Orders])
+		formatString: 0.00%
+		displayFolder: Delivery
+		lineageTag: c0fe6820-c716-4b0d-af0c-327c9d260b15
+
+	measure 'On-Time Delivery Rate' = DIVIDE([Delivery-Eligible Orders] - [Late Orders], [Delivery-Eligible Orders])
+		formatString: 0.00%
+		displayFolder: Delivery
+		lineageTag: 22b4170e-15d8-4334-a24d-fcb1efb81f3b
+
+	/// Mean purchase-to-delivery days over eligible orders where the duration is defined (D-08).
+	measure 'Avg Delivery Days' = CALCULATE(AVERAGE(Orders[Purchase to Delivery Days]), Orders[Delivery Eligible] = TRUE())
+		formatString: 0.0
+		displayFolder: Delivery
+		lineageTag: 350cfdb9-5bc2-490f-bbdd-bc01548cafdf
+
+	measure 'Median Delivery Days' = CALCULATE(MEDIAN(Orders[Purchase to Delivery Days]), Orders[Delivery Eligible] = TRUE())
+		formatString: 0.0
+		displayFolder: Delivery
+		lineageTag: 90fe71f7-8fe1-4d4c-8fa7-0613291747ad
+
+	measure 'Avg Carrier to Customer Days' = CALCULATE(AVERAGE(Orders[Carrier to Customer Days]), Orders[Delivery Eligible] = TRUE())
+		formatString: 0.0
+		displayFolder: Delivery
+		lineageTag: fbc2299e-e5b1-4da1-9cb8-1c140685d07c
+
+	/// Mean (delivery date - estimated date) in days over eligible orders; negative = delivered early.
+	measure 'Avg Days vs Estimate' = CALCULATE(AVERAGE(Orders[Delivery vs Estimate Days]), Orders[Delivery Eligible] = TRUE())
+		formatString: +0.0;-0.0;0.0
+		displayFolder: Delivery
+		lineageTag: fb8a3cf5-0bb8-43ec-b1a2-1ce4f9176979
+
+	measure 'Avg Approval Hours' = CALCULATE(AVERAGE(Orders[Approval Hours]), Orders[Delivery Eligible] = TRUE())
+		formatString: 0.0
+		displayFolder: Delivery
+		lineageTag: 65ebed7d-cf9c-4cf6-9d2c-2c16366740a9
+
+	/// Distinct reviews (review_id). A review shared by several orders counts once (Q-04 / D-07).
+	measure 'Review Count' = DISTINCTCOUNT(Reviews[Review ID])
+		formatString: #,0
+		displayFolder: Reviews
+		lineageTag: d2540387-f4fb-449a-9b89-5f88d9adfc54
+
+	/// Review-order links (rows of the review fact).
+	measure 'Review Links' = COUNTROWS(Reviews)
+		formatString: #,0
+		displayFolder: Reviews
+		lineageTag: 8d67e809-fb4c-4552-82d2-4410945f06e8
+
+	/// Mean score over distinct reviews in context (each review counted once with its own score). This is
+	/// a review-level average, not an order-level review score (Q-04).
+	measure 'Avg Review Score' = AVERAGEX(VALUES(Reviews[Review ID]), CALCULATE(MAX(Reviews[Review Score])))
+		formatString: 0.00
+		displayFolder: Reviews
+		lineageTag: 7ad70405-66a3-47aa-8d1c-69d7a5da3cb8
+
+	measure '5-Star Review Share' = DIVIDE(CALCULATE([Review Count], Reviews[Review Score] = 5), [Review Count])
+		formatString: 0.0%
+		displayFolder: Reviews
+		lineageTag: 179ea080-678d-4544-b830-10d2ddd81bd1
+
+	/// Share of reviews scored 1 or 2.
+	measure 'Low Score Share (1-2)' = DIVIDE(CALCULATE([Review Count], Reviews[Review Score] <= 2), [Review Count])
+		formatString: 0.0%
+		displayFolder: Reviews
+		lineageTag: 78f1f930-bb78-4359-9a00-d692d0fcd02e
+
+	/// Share of a score within the reviews in context (as review_share_pct in mart_review_scores_by_delivery).
+	measure 'Review Score Share' = DIVIDE([Review Count], CALCULATE([Review Count], REMOVEFILTERS(Reviews[Review Score])))
+		formatString: 0.0%
+		displayFolder: Reviews
+		lineageTag: 792d9766-f11f-4cea-b307-87fb0dc2de29
+
+	/// Payment-based value: sum of payment transactions (includes freight and vouchers; Q-03).
+	measure 'Payment Value' = SUM(Payments[Payment Value])
+		formatString: R$ #,0
+		displayFolder: Payments
+		lineageTag: 982f9ca2-9919-4682-8774-8d96a33f01f7
+
+	measure 'Payment Transactions' = COUNTROWS(Payments)
+		formatString: #,0
+		displayFolder: Payments
+		lineageTag: 9601ab1e-a5ee-4e64-8924-ef7453652411
+
+	measure 'Orders with Payment' = DISTINCTCOUNT(Payments[Order ID])
+		formatString: #,0
+		displayFolder: Payments
+		lineageTag: 4f331b5e-c9c2-47ac-8071-c4db66a731ee
+
+	/// Average transaction value excluding zero-value payments (as mart_payment_installments).
+	measure 'Avg Payment Value' = CALCULATE(AVERAGE(Payments[Payment Value]), Payments[Zero Value Payment] = FALSE())
+		formatString: R$ #,0.00
+		displayFolder: Payments
+		lineageTag: 73b9f89e-561c-478d-8f30-6983388e9a44
+
+	measure 'Payment Value per Order' = DIVIDE([Payment Value], [Orders with Payment])
+		formatString: R$ #,0.00
+		displayFolder: Payments
+		lineageTag: e25fdfe4-105a-44ec-8907-5aec1b9d9fc0
+
+	/// Average instalments excluding the 0-instalment rows (D-16, as mart_payment_methods_monthly).
+	measure 'Avg Installments' = CALCULATE(AVERAGE(Payments[Installments]), Payments[Zero Installments] = FALSE())
+		formatString: 0.00
+		displayFolder: Payments
+		lineageTag: 77d709d7-9a0e-45e0-bec5-360e63d5eb26
+
+	/// Share of payment value across payment types, keeping the other filters.
+	measure 'Payment Value Share' = DIVIDE([Payment Value], CALCULATE([Payment Value], REMOVEFILTERS(Payments[Payment Type], Payments[Payment Type Code])))
+		formatString: 0.0%
+		displayFolder: Payments
+		lineageTag: d7a2af54-6e02-4e03-a55c-e6f096850887
+
+	measure 'Credit Card Value Share' = DIVIDE(CALCULATE([Payment Value], Payments[Payment Type Code] = "credit_card"), CALCULATE([Payment Value], REMOVEFILTERS(Payments[Payment Type], Payments[Payment Type Code])))
+		formatString: 0.0%
+		displayFolder: Payments
+		lineageTag: dd2c4f23-fea6-4a8c-86ca-015c04d1a1b4
+
+	measure 'Multi-Installment Share' = DIVIDE(CALCULATE([Payment Transactions], Payments[Installments] >= 2), [Payment Transactions])
+		formatString: 0.0%
+		displayFolder: Payments
+		lineageTag: d389d6f9-222f-48bc-a7f5-e45f8deda6ad
+
+	column Value
+		dataType: string
+		isHidden
+		lineageTag: 01b2aa24-eb42-4002-8028-b1a31898a438
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Value]
+
+	partition 'Key Measures' = calculated
+		mode: import
+		source = {BLANK()}
+
+	annotation PBI_ResultType = Table
+

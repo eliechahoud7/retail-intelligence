@@ -1,0 +1,19 @@
+/// PostgreSQL server (host:port) of the Retail Intelligence warehouse. Credentials are never stored here:
+/// Power BI Desktop asks for them once and keeps them in its local credential store.
+expression ServerName = "localhost:5432" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 159b3b6e-344d-4e89-9e54-24ea8d722df2
+
+	annotation PBI_ResultType = Text
+
+/// PostgreSQL database of the Retail Intelligence warehouse.
+expression DatabaseName = "retail_intelligence" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 35c47d5c-840d-4009-9f36-bf9014c11741
+
+	annotation PBI_ResultType = Text
+
+/// RFM reference date (Phase 9: 2018-08-31, the end of the Q-11 candidate window).
+expression RfmReferenceDate = "2018-08-31" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 18b583fa-dacf-4318-84b0-b0d06e70c7dd
+
+	annotation PBI_ResultType = Text
+

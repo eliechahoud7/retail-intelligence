@@ -1,0 +1,89 @@
+/// Cohort retention mart, reused as-is: dbt_marts.mart_customer_cohorts (one row per cohort month x months
+/// since first purchase; all order statuses, item-based revenue). Disconnected from the star schema by
+/// design: cohorts are defined by first-purchase month, not by the report's purchase-date filter.
+table 'Customer Cohorts'
+	lineageTag: 5958ea35-a770-4bcf-b99f-be5a6eb60ffb
+
+	column 'Cohort Month'
+		dataType: string
+		lineageTag: e930c078-2546-4a5b-9f08-5361b9b7c76c
+		summarizeBy: none
+		sourceColumn: cohort_month
+
+	column 'Months Since First Purchase'
+		dataType: int64
+		formatString: 0
+		lineageTag: ae5e9344-9066-4dc0-941e-efaf9b0d2dcf
+		summarizeBy: none
+		sourceColumn: months_since_first_purchase
+
+	column 'Activity Month'
+		dataType: string
+		lineageTag: c892cf1b-60a9-439a-80a0-e5f419b6011d
+		summarizeBy: none
+		sourceColumn: activity_month
+
+	/// Cohort month inside the Q-11 candidate window (2017-01 to 2018-08).
+	column 'Cohort In Candidate Window'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 3dbc7b8b-b09e-43cc-b15e-30cd4cba1da7
+		summarizeBy: none
+		sourceColumn: cohort_in_candidate_window
+
+	column 'Activity In Candidate Window'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 1916fd3b-e355-49dd-b7ed-d22e52174b09
+		summarizeBy: none
+		sourceColumn: activity_in_candidate_window
+
+	column 'Cohort Size'
+		dataType: int64
+		formatString: #,0
+		lineageTag: e999f3b4-90f9-4db3-9941-dfd7881f57d1
+		summarizeBy: none
+		sourceColumn: cohort_size
+
+	column 'Active Customers'
+		dataType: int64
+		formatString: #,0
+		lineageTag: a9abfc1a-f45e-4974-a035-129ba442c9ba
+		summarizeBy: sum
+		sourceColumn: active_customers
+
+	/// Mart value: 100 x active / cohort size (percent points).
+	column 'Retention Pct (mart)'
+		dataType: double
+		isHidden
+		formatString: 0.00
+		lineageTag: a8159746-2954-4c8d-8eeb-226481e81137
+		summarizeBy: none
+		sourceColumn: retention_pct
+
+	column 'Cohort Orders'
+		dataType: int64
+		formatString: #,0
+		lineageTag: 8c887c87-61e9-4a12-8c9e-23b28ae03273
+		summarizeBy: sum
+		sourceColumn: n_orders
+
+	column 'Cohort Item Revenue'
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: 2fe86995-2f09-491f-8fa1-dc4f26f3d796
+		summarizeBy: sum
+		sourceColumn: items_price_total
+
+	partition 'Customer Cohorts' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    Mart = Source{[Schema = "dbt_marts", Item = "mart_customer_cohorts"]}[Data],
+				    Typed = Table.TransformColumnTypes(Mart, {{"cohort_month", type text}, {"months_since_first_purchase", Int64.Type}, {"activity_month", type text}, {"cohort_in_candidate_window", type logical}, {"activity_in_candidate_window", type logical}, {"cohort_size", Int64.Type}, {"active_customers", Int64.Type}, {"retention_pct", type number}, {"n_orders", Int64.Type}, {"items_price_total", Currency.Type}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

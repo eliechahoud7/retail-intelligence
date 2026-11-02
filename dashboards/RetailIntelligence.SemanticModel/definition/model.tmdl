@@ -1,0 +1,28 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	discourageImplicitMeasures
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["ServerName","DatabaseName","RfmReferenceDate","Date","Customers","Products","Sellers","Orders","Order Lines","Payments","Reviews","Customer Cohorts"]
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table 'Key Measures'
+ref table Date
+ref table Customers
+ref table Products
+ref table Sellers
+ref table Orders
+ref table 'Order Lines'
+ref table Payments
+ref table Reviews
+ref table 'Customer Cohorts'
+
+ref cultureInfo en-US
+

@@ -1,0 +1,39 @@
+/// Seller dimension: warehouse.dim_sellers (one row per seller_id). Related to Order Lines only; payments are
+/// never attributed to sellers (Q-03).
+table Sellers
+	lineageTag: 2bcc5317-a89f-48ee-80b0-7c6165ce35d9
+
+	column 'Seller ID'
+		dataType: string
+		isKey
+		lineageTag: 1128f3d1-6f2f-496b-bd4e-3ef761f62d86
+		summarizeBy: none
+		sourceColumn: seller_id
+
+	/// Seller state (standardised two-letter code).
+	column 'Seller State'
+		dataType: string
+		lineageTag: fc9f918a-a6ea-4283-ad2d-6b2d2efec56b
+		summarizeBy: none
+		sourceColumn: seller_state_std
+
+	/// Standardised seller city.
+	column 'Seller City'
+		dataType: string
+		lineageTag: f0698612-4a35-421d-9a04-ebab3fd3e506
+		summarizeBy: none
+		sourceColumn: city_key
+
+	partition Sellers = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    DimSellers = Source{[Schema = "warehouse", Item = "dim_sellers"]}[Data],
+				    Kept = Table.SelectColumns(DimSellers, {"seller_id", "seller_state_std", "city_key"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"seller_id", type text}, {"seller_state_std", type text}, {"city_key", type text}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

@@ -1,0 +1,223 @@
+/// Order fact: warehouse.fact_orders, one row per order_id (99,441). Hub of the model: Date and Customers
+/// filter Orders, and Orders filters Order Lines, Payments and Reviews (each many-to-one on order_id), so item
+/// revenue, payments and reviews are never joined to one another (no fan-out, Q-03 / Q-04).
+/// Delivery columns follow D-06: an order is delivery-eligible when its status is 'delivered' AND it has a
+/// customer delivery date; delivery metrics use eligible orders only.
+table Orders
+	lineageTag: f083f1a6-9a1b-44ba-b9bb-d908dc3b19f9
+
+	column 'Order ID'
+		dataType: string
+		isKey
+		lineageTag: a3542c30-2be8-43da-839c-9b9c136eff83
+		summarizeBy: none
+		sourceColumn: order_id
+
+	column 'Customer ID'
+		dataType: string
+		isHidden
+		lineageTag: a799dc5e-2004-4b59-8465-e03071200a3e
+		summarizeBy: none
+		sourceColumn: customer_unique_id
+
+	/// Raw status code (delivered, shipped, canceled, ...). Used by measures.
+	column 'Order Status Code'
+		dataType: string
+		isHidden
+		lineageTag: 3398beac-fcd6-4cf7-b7a0-52a53a19ad5f
+		summarizeBy: none
+		sourceColumn: order_status
+
+	/// Current order status at data extraction (Gold has no status history).
+	column 'Order Status'
+		dataType: string
+		lineageTag: 23e4c1a9-b5b3-42ef-92c1-e41db1ddde86
+		summarizeBy: none
+		sourceColumn: order_status_label
+
+	column 'Purchase Timestamp'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:nn
+		lineageTag: 14cb2078-fe70-4ff4-b6ab-efc0c571f1e5
+		summarizeBy: none
+		sourceColumn: order_purchase_timestamp
+
+	column 'Purchase Date'
+		dataType: dateTime
+		isHidden
+		formatString: yyyy-mm-dd
+		lineageTag: 43f1a739-4f9e-40b0-9840-7bea530902f6
+		summarizeBy: none
+		sourceColumn: purchase_date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column 'Delivered Date'
+		dataType: dateTime
+		formatString: yyyy-mm-dd hh:nn
+		lineageTag: dda79bd3-cd33-4b41-aa02-fdd8c1f9ddca
+		summarizeBy: none
+		sourceColumn: order_delivered_customer_date
+
+	column 'Estimated Delivery Date'
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		lineageTag: 2070d795-d3c9-4da8-b3b8-1edf1f035f13
+		summarizeBy: none
+		sourceColumn: order_estimated_delivery_date
+
+	/// Customer state of the order (standardised two-letter code).
+	column 'Customer State'
+		dataType: string
+		lineageTag: 7e9f7d5e-f18f-41d5-afe6-cfd7511b8d16
+		summarizeBy: none
+		sourceColumn: customer_state_std
+
+	column 'Customer City'
+		dataType: string
+		lineageTag: dc8b2fda-bb1f-4294-bf29-3d8b29875fa6
+		summarizeBy: none
+		sourceColumn: customer_city_key
+
+	/// 1 for the person's first order, 2 for the second, ...
+	column 'Customer Order Sequence'
+		dataType: int64
+		formatString: 0
+		lineageTag: 6d5b0439-5c0f-463b-ba83-23ddf3d1f456
+		summarizeBy: none
+		sourceColumn: customer_order_seq
+
+	column 'Is First Order'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 4f6414a6-bc94-4ab5-82f5-00d529b9e262
+		summarizeBy: none
+		sourceColumn: is_first_order
+
+	column 'Has Items'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: d3d10ede-e009-40a4-b53e-6fabd2a1b2d7
+		summarizeBy: none
+		sourceColumn: has_items
+
+	column 'Has Payment'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 35d469ee-13f5-4457-9f27-2a0bf5411021
+		summarizeBy: none
+		sourceColumn: has_payment
+
+	/// D-06 eligibility: status delivered AND a customer delivery date.
+	column 'Delivery Eligible'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: cad9ab4f-a2f9-430d-8587-759613a9cd30
+		summarizeBy: none
+		sourceColumn: delivery_eligible
+
+	/// Gold is_late (day-level; delivered after the estimated date). Meaningful for eligible orders only.
+	column 'Is Late'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 1040bb3f-6c5b-4b60-ada4-dde8b53526a0
+		summarizeBy: none
+		sourceColumn: is_late
+
+	/// Days from purchase to customer delivery (NULL where not defined or invalid per D-08).
+	column 'Purchase to Delivery Days'
+		dataType: double
+		formatString: #,0.0
+		lineageTag: 9109cab4-4689-4a2f-af2a-5a95b6dd89fc
+		summarizeBy: none
+		sourceColumn: purchase_to_delivery_days
+
+	column 'Carrier to Customer Days'
+		dataType: double
+		formatString: #,0.0
+		lineageTag: 23a7dae0-021f-4102-8018-912da91599c0
+		summarizeBy: none
+		sourceColumn: carrier_to_customer_days
+
+	column 'Approval Hours'
+		dataType: double
+		formatString: #,0.0
+		lineageTag: 88db9753-abac-487a-ba35-aa6f73c04878
+		summarizeBy: none
+		sourceColumn: approval_hours
+
+	/// Delivery date minus estimated date in days (negative = early, positive = late).
+	column 'Delivery vs Estimate Days'
+		dataType: double
+		formatString: #,0
+		lineageTag: 57cafc85-e7a3-4a77-a724-febedb1b854f
+		summarizeBy: none
+		sourceColumn: delivery_vs_estimate_days
+
+	/// Delivery class exactly as in dbt_marts.mart_review_scores_by_delivery: Early / On estimated day / Late
+	/// for D-06 eligible orders, otherwise "Not delivery-eligible".
+	column 'Delivery Class'
+		dataType: string
+		lineageTag: 1eccd722-bed3-4db4-a4e0-3f516dc28d40
+		summarizeBy: none
+		sourceColumn: delivery_class
+		sortByColumn: 'Delivery Class Sort'
+
+	column 'Delivery Class Sort'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 04c4312f-5f55-4b98-9103-334e6c44ca6d
+		summarizeBy: none
+		sourceColumn: delivery_class_sort
+
+	/// Delivery timing band vs the estimate (eligible orders only; others "Not delivery-eligible").
+	column 'Delivery Timing Band'
+		dataType: string
+		lineageTag: feac189e-a6dc-48a4-897d-7557d2b2619f
+		summarizeBy: none
+		sourceColumn: delivery_timing_band
+		sortByColumn: 'Delivery Timing Band Sort'
+
+	column 'Delivery Timing Band Sort'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: a82567dc-da48-4970-86b4-d7b5ca5b4104
+		summarizeBy: none
+		sourceColumn: delivery_timing_band_sort
+
+	partition Orders = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    FactOrders = Source{[Schema = "warehouse", Item = "fact_orders"]}[Data],
+				    Kept = Table.SelectColumns(FactOrders, {"order_id", "customer_unique_id", "order_status", "order_purchase_timestamp", "purchase_date", "order_delivered_customer_date", "order_estimated_delivery_date", "customer_state_std", "customer_city_key", "customer_order_seq", "is_first_order", "has_items", "has_payment", "is_late", "purchase_to_delivery_days", "carrier_to_customer_days", "approval_hours", "delivery_vs_estimate_days"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"order_id", type text}, {"customer_unique_id", type text}, {"order_status", type text}, {"order_purchase_timestamp", type datetime}, {"purchase_date", type date}, {"order_delivered_customer_date", type datetime}, {"order_estimated_delivery_date", type datetime}, {"customer_state_std", type text}, {"customer_city_key", type text}, {"customer_order_seq", Int64.Type}, {"is_first_order", type logical}, {"has_items", type logical}, {"has_payment", type logical}, {"is_late", type logical}, {"purchase_to_delivery_days", type number}, {"carrier_to_customer_days", type number}, {"approval_hours", type number}, {"delivery_vs_estimate_days", type number}}),
+				    StatusLabel = Table.AddColumn(Typed, "order_status_label", each Text.Proper([order_status]), type text),
+				    Eligible = Table.AddColumn(StatusLabel, "delivery_eligible", each [order_status] = "delivered" and [order_delivered_customer_date] <> null, type logical),
+				    // same CASE order as the mart: not eligible -> < 0 early -> = 0 on estimated day -> else late
+				    Class = Table.AddColumn(Eligible, "delivery_class", each
+				        if not [delivery_eligible] then "Not delivery-eligible"
+				        else if [delivery_vs_estimate_days] < 0 then "Early"
+				        else if [delivery_vs_estimate_days] = 0 then "On estimated day"
+				        else "Late", type text),
+				    ClassSort = Table.AddColumn(Class, "delivery_class_sort", each List.PositionOf({"Early", "On estimated day", "Late", "Not delivery-eligible"}, [delivery_class]) + 1, Int64.Type),
+				    Band = Table.AddColumn(ClassSort, "delivery_timing_band", each
+				        let d = [delivery_vs_estimate_days] in
+				        if not [delivery_eligible] then "Not delivery-eligible"
+				        else if d <= -15 then "15+ days early"
+				        else if d <= -8 then "8-14 days early"
+				        else if d <= -1 then "1-7 days early"
+				        else if d = 0 then "On estimated day"
+				        else if d <= 3 then "1-3 days late"
+				        else if d <= 7 then "4-7 days late"
+				        else if d <= 14 then "8-14 days late"
+				        else "15+ days late", type text),
+				    BandSort = Table.AddColumn(Band, "delivery_timing_band_sort", each List.PositionOf({"15+ days early", "8-14 days early", "1-7 days early", "On estimated day", "1-3 days late", "4-7 days late", "8-14 days late", "15+ days late", "Not delivery-eligible"}, [delivery_timing_band]) + 1, Int64.Type)
+				in
+				    BandSort
+
+	annotation PBI_ResultType = Table
+

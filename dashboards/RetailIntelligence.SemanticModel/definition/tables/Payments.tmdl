@@ -1,0 +1,99 @@
+/// Payment fact: warehouse.fact_payments, one row per payment transaction (order_id x payment_sequential;
+/// 103,886 rows). Source of PAYMENT-BASED amounts (Q-03): includes freight and vouchers, is never combined
+/// with item revenue and is never attributed to products or sellers. Filtered by Orders only.
+table Payments
+	lineageTag: bbc9fe4c-aa34-459c-9219-a3c949e244c6
+
+	column 'Order ID'
+		dataType: string
+		isHidden
+		lineageTag: e7e2f381-44fa-484a-a8be-7d5f555b1026
+		summarizeBy: none
+		sourceColumn: order_id
+
+	column 'Payment Sequential'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: d50496e6-67e9-4e51-a1c0-22b4345439ee
+		summarizeBy: none
+		sourceColumn: payment_sequential
+
+	/// Raw payment type code (credit_card, boleto, voucher, debit_card, not_defined).
+	column 'Payment Type Code'
+		dataType: string
+		isHidden
+		lineageTag: 08131458-4c0d-4d7a-bdd9-35eebaf19620
+		summarizeBy: none
+		sourceColumn: payment_type
+
+	column 'Payment Type'
+		dataType: string
+		lineageTag: 1b849e94-fba2-4c6e-b168-269946844925
+		summarizeBy: none
+		sourceColumn: payment_type_label
+
+	/// Recorded instalment count, kept as recorded (0 = data issue, D-16).
+	column Installments
+		dataType: int64
+		formatString: 0
+		lineageTag: 50a9e9e7-0b26-4f87-876c-9ce0df5b7d11
+		summarizeBy: none
+		sourceColumn: payment_installments
+
+	column 'Installment Band'
+		dataType: string
+		lineageTag: a86f83ac-9762-48a6-8dfe-5385820ba921
+		summarizeBy: none
+		sourceColumn: installment_band
+		sortByColumn: 'Installment Band Sort'
+
+	column 'Installment Band Sort'
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 7a31f6ca-0a02-4278-a5fa-c3349f8c7582
+		summarizeBy: none
+		sourceColumn: installment_band_sort
+
+	column 'Payment Value'
+		dataType: decimal
+		formatString: R$ #,0.00
+		lineageTag: 0fe8cdce-fcf9-46b8-9716-c71ebda24526
+		summarizeBy: sum
+		sourceColumn: payment_value
+
+	/// TRUE for zero-value payments (excluded from average-ticket statistics).
+	column 'Zero Value Payment'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: bfd6f727-49f9-4b82-bcfa-d0d9fe74c2b1
+		summarizeBy: none
+		sourceColumn: dq_payment_zero
+
+	/// TRUE for the credit-card payments recorded with 0 instalments (D-16; excluded from instalment averages).
+	column 'Zero Installments'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 3d14e9cd-3857-49a9-b952-eff776c8ac63
+		summarizeBy: none
+		sourceColumn: dq_installments_zero
+
+	partition Payments = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    FactPayments = Source{[Schema = "warehouse", Item = "fact_payments"]}[Data],
+				    Kept = Table.SelectColumns(FactPayments, {"order_id", "payment_sequential", "payment_type", "payment_installments", "payment_value", "dq_payment_zero", "dq_installments_zero"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"order_id", type text}, {"payment_sequential", Int64.Type}, {"payment_type", type text}, {"payment_installments", Int64.Type}, {"payment_value", Currency.Type}, {"dq_payment_zero", type logical}, {"dq_installments_zero", type logical}}),
+				    Label = Table.AddColumn(Typed, "payment_type_label", each Record.FieldOrDefault([credit_card = "Credit card", boleto = "Boleto", voucher = "Voucher", debit_card = "Debit card", not_defined = "Not defined"], [payment_type], [payment_type]), type text),
+				    Band = Table.AddColumn(Label, "installment_band", each
+				        let n = [payment_installments] in
+				        if n = 0 then "0 (recorded)" else if n = 1 then "1" else if n <= 3 then "2-3" else if n <= 6 then "4-6" else if n <= 10 then "7-10" else "11+", type text),
+				    BandSort = Table.AddColumn(Band, "installment_band_sort", each List.PositionOf({"0 (recorded)", "1", "2-3", "4-6", "7-10", "11+"}, [installment_band]) + 1, Int64.Type)
+				in
+				    BandSort
+
+	annotation PBI_ResultType = Table
+

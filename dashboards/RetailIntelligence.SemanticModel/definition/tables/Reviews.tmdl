@@ -1,0 +1,62 @@
+/// Review fact: warehouse.fact_reviews at its own grain, one row per review-order link (review_id x order_id;
+/// 99,224 links, 98,410 distinct reviews). Q-04 / D-07: no order-level review score is derived; review
+/// measures count distinct review_id, and each review keeps its own score. Filtered by Orders only.
+table Reviews
+	lineageTag: bfb61ae2-18ff-4bc9-9b13-ec7dcea4bb8e
+
+	column 'Review ID'
+		dataType: string
+		isHidden
+		lineageTag: 25945273-b4d7-4811-99ca-113782562916
+		summarizeBy: none
+		sourceColumn: review_id
+
+	column 'Order ID'
+		dataType: string
+		isHidden
+		lineageTag: b4f75804-690f-4ccf-8571-104d63a96c98
+		summarizeBy: none
+		sourceColumn: order_id
+
+	column 'Review Score'
+		dataType: int64
+		formatString: 0
+		lineageTag: fcf2ec69-9509-491c-8fd2-620db5858700
+		summarizeBy: none
+		sourceColumn: review_score
+
+	column 'Review Created'
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		lineageTag: c7999ba2-365c-40d4-b000-90fb59172980
+		summarizeBy: none
+		sourceColumn: review_creation_date
+
+	column 'Has Comment'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: a5b3930e-37fa-48fd-b5f4-385913102f36
+		summarizeBy: none
+		sourceColumn: has_comment_message
+
+	/// TRUE when the review_id is shared by several orders (D-07).
+	column 'Shared Review'
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 660da57f-2c16-4ce8-a901-5e73af1af23c
+		summarizeBy: none
+		sourceColumn: dq_review_id_shared
+
+	partition Reviews = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database(ServerName, DatabaseName),
+				    FactReviews = Source{[Schema = "warehouse", Item = "fact_reviews"]}[Data],
+				    Kept = Table.SelectColumns(FactReviews, {"review_id", "order_id", "review_score", "review_creation_date", "has_comment_message", "dq_review_id_shared"}),
+				    Typed = Table.TransformColumnTypes(Kept, {{"review_id", type text}, {"order_id", type text}, {"review_score", Int64.Type}, {"review_creation_date", type datetime}, {"has_comment_message", type logical}, {"dq_review_id_shared", type logical}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+
