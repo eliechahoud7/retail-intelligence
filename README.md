@@ -14,7 +14,7 @@ retail-intelligence/
 │       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
 │       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
 │       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
-├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics · 08–09 machine learning
+├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference · 06–07 customer analytics · 08–09 machine learning · 10 forecasting
 ├── reports/            # data_preparation_strategy.md, ingestion / staging / clean / analytical reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
@@ -361,6 +361,16 @@ Delivery prediction **at checkout**, using a shared, leakage-checked order-level
 - `notebooks/09_classification_modeling.ipynb`: late delivery. It compares a baseline, logistic regression, a decision tree, a random forest and HistGradientBoosting, with PR-AUC-based selection, out-of-fold thresholds (a capacity policy), drift-aware evaluation and error analysis.
 
 Results, methodology and limitations: `reports/machine_learning/machine_learning_report.md`.
+
+## Time-series forecasting (Phase 11)
+
+`notebooks/10_time_series_forecasting.ipynb` forecasts **daily order volume 14 days ahead, issued weekly** (2017-01-01 to 2018-08-21; the extract is incomplete after that date).
+- **Validation:** rolling-origin, expanding-window evaluation with chronological validation (March–May 2018) and a final test (June–August 2018) used once. Leakage-safe direct features (all inputs ≥ 14 days old).
+- **Diagnostics:** ADF/KPSS stationarity tests and ACF/PACF.
+- **Models:** naive, seasonal-naive and moving-average baselines; Holt-Winters; SARIMA; HistGradientBoosting.
+- **Result:** Holt-Winters is best on test (WAPE 0.214, 6.9% better than the seasonal naive). The validation winner, HistGradientBoosting, didn't generalise.
+
+Methodology, results and limitations: `reports/forecasting/forecasting_report.md`.
 
 ## Tests
 
