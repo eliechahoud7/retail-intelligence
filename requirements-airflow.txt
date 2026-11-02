@@ -1,0 +1,7 @@
+# Apache Airflow (Phase 7) - Linux / WSL2 only, in its own environment (~/venvs/airflow).
+# Airflow does not run natively on Windows. Install:
+#   python3.12 -m venv ~/venvs/airflow
+#   ~/venvs/airflow/bin/python -m pip install -r requirements-airflow.txt
+# The official constraints file pins every transitive dependency of this release.
+-c https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
+apache-airflow==3.3.2

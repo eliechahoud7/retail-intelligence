@@ -1,0 +1,14 @@
+# PySpark environment (Phase 6) - Linux / WSL2 only, separate from .venv and .venv-dbt.
+# Native Windows Spark cannot write Parquet without third-party winutils binaries, so Spark runs in
+# WSL2 Ubuntu 24.04 with OpenJDK 17 (apt: openjdk-17-jre-headless, python3.12-venv):
+#   python3.12 -m venv ~/venvs/retail-spark
+#   ~/venvs/retail-spark/bin/python -m pip install -r requirements-spark.txt
+# Exact pins (pip freeze). pandas / pyarrow / numpy match requirements-lock.txt, so the pandas used
+# next to Spark is the project's pandas.
+numpy==2.5.4
+pandas==3.1.0
+py4j==0.10.9.9
+pyarrow==26.0.0
+pyspark==4.2.0
+python-dateutil==4.0.0
+tzdata==2026.6

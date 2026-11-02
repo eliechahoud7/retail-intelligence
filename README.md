@@ -6,6 +6,7 @@ Analytics project on the Olist Brazilian E-Commerce dataset (9 CSV files).
 
 ```
 retail-intelligence/
+├── airflow/dags/       # Phase 7 — Airflow DAG orchestrating the pipeline (runs in WSL2)
 ├── data/
 │   ├── raw/            # 9 original Olist CSVs — read-only, never modified
 │   ├── staging/        # Task 4.2 — typed Parquet copies + derived structures (not versioned)
@@ -13,13 +14,14 @@ retail-intelligence/
 │       ├── clean/      # Task 4.3 — flagged + standardised tables at source grain (not versioned)
 │       ├── analytical/ # Task 4.4 — star schema: facts and dimensions (not versioned)
 │       └── _manifest/  # one JSON run manifest per clean / analytical run (not versioned)
-├── notebooks/          # 01 inventory · 02 relationships · 03 data quality
+├── notebooks/          # 01 inventory · 02 relationships · 03 data quality · 04 advanced EDA · 05 statistical inference
 ├── reports/            # data_preparation_strategy.md, ingestion / staging / clean / analytical reports
 ├── src/
 │   ├── ingestion/      # Task 4.1 — raw data ingestion layer
 │   ├── staging/        # Task 4.2 — staging layer (Parquet)
 │   ├── clean/          # Task 4.3 — clean layer (Parquet)
-│   └── analytical/     # Task 4.4 — analytical layer (Parquet star schema)
+│   ├── analytical/     # Task 4.4 — analytical layer (Parquet star schema)
+│   └── spark/          # Phase 6 — PySpark workloads, benchmark, reconciliation (runs in WSL2)
 ├── tests/              # automated tests (unittest)
 ├── dashboards/
 ├── models/
@@ -281,6 +283,66 @@ Grain, keys, foreign keys, sources and the explicit schema of every table are de
   - 6,535 late deliveries, 306 deliveries over 60 days.
 - **Warnings:** W01, W04, W05.
 - **Lineage:** `data/processed/_manifest/<run_id>.json` and `reports/analytical/analytical_report.{json,md}` follow the clean-layer conventions. They also record every join and the decisions applied.
+
+## PySpark (Phase 6)
+
+Three analytical workloads on the Gold Parquet files with PySpark 4.2.0. They demonstrate the DataFrame API, Spark SQL, broadcast joins, partitioning and query plans, with a benchmark against pandas. Spark runs in **WSL2** (native Windows Spark cannot write Parquet without third-party `winutils`); see `requirements-spark.txt` for the setup.
+
+```bash
+~/venvs/retail-spark/bin/python -m src.spark.jobs        # WSL2, from the project root
+```
+
+```powershell
+.venv\Scripts\python.exe -m src.spark.reconcile          # Windows: compare the Spark results with PostgreSQL
+```
+
+Methods, partitioning and plan evidence, benchmark results and limitations: `reports/spark/spark_report.md`.
+
+## Airflow (Phase 7)
+
+`airflow/dags/retail_pipeline.py` orchestrates the existing commands. It contains no pipeline logic of its own:
+
+```
+ingest >> staging >> clean >> analytical >> load_warehouse >> verify_views >> dbt_build >> spark_reconcile
+                                   analytical >> spark_jobs >> spark_reconcile
+```
+
+- **Schedule:** Mondays 06:00 UTC, `catchup=False`, `max_active_runs=1`.
+- **Retries:** 2 per task, 2 minutes apart with exponential backoff; 30-minute timeout per task.
+- **Failures:** a failing command (non-zero exit) fails its task, and downstream tasks become `upstream_failed`.
+- **Reruns:** every command is idempotent, so any task can be cleared and rerun.
+
+Airflow 3.3.2 runs in **WSL2**, because it doesn't support Windows. Windows stages call `.venv/Scripts/python.exe` through WSL interop; they stay Windows processes and reach PostgreSQL on `localhost` with no network change. `spark_jobs` runs natively in WSL.
+
+```bash
+# install once (WSL2)
+python3.12 -m venv ~/venvs/airflow && ~/venvs/airflow/bin/python -m pip install -r requirements-airflow.txt
+
+# start (WSL2): scheduler, DAG processor, triggerer and API server/UI in one process
+export AIRFLOW_HOME=~/airflow
+export AIRFLOW__CORE__DAGS_FOLDER=/mnt/c/Users/Admin/Desktop/retail-intelligence/airflow/dags
+export AIRFLOW__CORE__LOAD_EXAMPLES=False
+~/venvs/airflow/bin/airflow standalone
+```
+
+- **UI:** http://localhost:8080 (also from Windows). User `admin`; the password is in `~/airflow/simple_auth_manager_passwords.json.generated`.
+- **Pausing:** the DAG is created paused. Unpausing it in the UI starts the latest scheduled run, which is the full pipeline.
+- **Manual run:** use the UI's *Trigger*, or `airflow dags trigger retail_intelligence_pipeline`.
+- **Monitoring:** the Grid view shows task states and each attempt's log; logs are also in `~/airflow/logs/`.
+- **Rerunning a task:** use *Clear* on it in the UI.
+- **Local test without a scheduler:** `airflow dags test retail_intelligence_pipeline --mark-success-pattern '^(staging|clean|analytical|load_warehouse)$'` runs the DAG in-process and skips the rebuild stages.
+
+## Advanced EDA and statistics (Phase 8)
+
+Two notebooks on the Gold tables, run with the project `.venv`:
+- `notebooks/04_advanced_eda.ipynb`: distributions, trends and seasonality, revenue concentration, customer behaviour, categories, delivery vs reviews.
+- `notebooks/05_statistical_inference.ipynb`: descriptive statistics, distribution fits, sampling, confidence intervals, seven hypothesis tests with effect sizes and Holm correction, an adjusted logit, and power analysis.
+
+```powershell
+.venv\Scripts\python.exe -m jupyter nbconvert --to notebook --execute --inplace notebooks/04_advanced_eda.ipynb notebooks/05_statistical_inference.ipynb
+```
+
+Methodology, findings and limitations: `reports/eda/eda_statistics_report.md`.
 
 ## Tests
 
